@@ -1,0 +1,46 @@
+name: CI
+
+# Runs the same gates as local dev — lint, type-check, and the full test
+# suite (unit + integration). The integration tests stand up a real MySQL 8.4
+# via testcontainers, which uses the Docker daemon pre-installed on the
+# ubuntu-latest runner; no `services:` block or secrets are needed (no test
+# instantiates Settings or reads .env).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch/PR cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # matches pyproject requires-python
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Editable install + dev extra (ruff, mypy, pytest, testcontainers[mysql]).
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff check + format)
+        run: make lint
+
+      - name: Type-check (mypy)
+        run: make typecheck
+
+      - name: Tests (unit + integration)
+        run: make test

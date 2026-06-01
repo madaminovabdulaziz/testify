@@ -1,0 +1,78 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Mounted host directory for backups. ``scripts/backup.sh`` writes
+      # ``attestation-<timestamp>.sql.gz`` files here; rotate off-host
+      # via your existing rsync/S3 cron.
+      - ./backups:/backups
+    # caching_sha2_password is already the default in MySQL 8.4 — the
+    # ``--default-authentication-plugin`` option was removed in 8.4, so
+    # it's NOT listed here (would fail to boot).
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+00:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --save 60 1000
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    environment:
+      # Substituted into nginx.conf.template by the entrypoint script.
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME}
+      WEBHOOK_SECRET_PATH: ${WEBHOOK_SECRET_PATH}
+    volumes:
+      - ./docker/nginx.conf.template:/etc/nginx/nginx.conf.template:ro
+      - ./docker/nginx-entrypoint.sh:/usr/local/bin/bot-nginx-entrypoint.sh:ro
+      - ./certs:/etc/nginx/certs:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/bot-nginx-entrypoint.sh"]
+    depends_on:
+      - bot
+
+volumes:
+  mysql_data:
+  redis_data:

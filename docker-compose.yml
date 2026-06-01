@@ -1,0 +1,49 @@
+# Development compose file: only MySQL and Redis run in containers; the bot
+# itself runs on the host via `make dev` for fast iteration (polling mode).
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-attestation}
+      MYSQL_USER: ${DB_USER:-bot}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-botpass}
+    ports:
+      # Host port 3307 → container 3306 so we don't fight a host-side
+      # MySQL (Homebrew / MAMP / another container) that may already
+      # own 3306. The bot reads ``DB_PORT`` from .env — keep them
+      # in sync if you change this.
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    # caching_sha2_password is already the default in MySQL 8.4 — the
+    # ``--default-authentication-plugin`` startup option was removed in
+    # 8.4, so it's NOT listed here (would fail to boot).
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-time-zone=+00:00
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --save 60 1000
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,0 +1,67 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- Testing & coverage ----
+.coverage
+.coverage.*
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ---- Linters / type checkers ----
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+
+# ---- Environment / secrets ----
+.env
+.env.local
+.env.*.local
+
+# ---- Local databases ----
+*.sqlite
+*.sqlite3
+*.db
+
+# ---- IDEs ----
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ---- OS junk ----
+.DS_Store
+Thumbs.db
+
+# ---- Project-specific ----
+certs/
+uv.lock

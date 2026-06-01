@@ -1,0 +1,136 @@
+[project]
+name = "attestation-bot"
+version = "0.1.0"
+description = "Telegram bot for a Russian-language teacher in Uzbekistan running mock DTM attestation exams."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+authors = [{ name = "Attestation Bot Team" }]
+dependencies = [
+    "aiogram>=3.13",
+    "aiohttp>=3.10",
+    "asyncmy>=0.2.10",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.13",
+    "redis>=5.0",
+    "apscheduler>=3.10",
+    "openpyxl>=3.1",
+    "imagehash>=4.3",
+    "pillow>=10.0",
+    "pydantic-settings>=2.5",
+    "structlog>=24.4",
+    "sentry-sdk>=2.14",
+    "prometheus-client>=0.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-mock>=3.14",
+    "testcontainers[mysql]>=4.8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "alembic*", "scripts*"]
+
+# ---------- ruff ----------
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",   # line length handled by the formatter
+    # The bot is Russian-first. Almost every user-facing string contains
+    # Cyrillic characters that visually resemble Latin (е/e, у/y, с/c, …);
+    # the homoglyph rules would flag every single one without catching
+    # any real ambiguity, because the strings are uniformly Russian.
+    "RUF001", # ambiguous unicode in string literal
+    "RUF002", # ambiguous unicode in docstring
+    "RUF003", # ambiguous unicode in comment
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]  # allow assert False in tests
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# ---------- mypy ----------
+
+[tool.mypy]
+python_version = "3.12"
+# Global defaults are intentionally lenient; the strictness lives on
+# app.services and app.repositories per ARCHITECTURE_SPEC §19. The few
+# truly-global mypy flags (warn_redundant_casts, warn_unused_configs)
+# stay here because mypy rejects them inside per-module overrides.
+warn_unused_configs = true
+warn_redundant_casts = true
+ignore_missing_imports = false
+
+[[tool.mypy.overrides]]
+module = ["app.services.*", "app.repositories.*"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = [
+    "imagehash",
+    "apscheduler.*",
+    "asyncmy",
+    "asyncmy.*",
+    "openpyxl",
+    "openpyxl.*",
+    "sentry_sdk",
+    "sentry_sdk.*",
+    "PIL",
+    "PIL.*",
+    "aiogram",
+    "aiogram.*",
+]
+ignore_missing_imports = true
+
+# ---------- pytest ----------
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Share one session-scoped event loop across fixtures AND tests. The
+# integration suite's engine/container fixtures are session-scoped, so tests
+# that consume them must run on the same loop (pytest-asyncio 1.x manages the
+# loop itself — the old session-scoped ``event_loop`` fixture override is
+# gone). Without these, a session-scoped async fixture and a per-function test
+# land on different loops and teardown raises "Event loop is closed".
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
