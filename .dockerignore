@@ -1,0 +1,34 @@
+# Keep the Railway build context lean. README.md is kept (pyproject reads it).
+.git
+.github
+.gitignore
+tests
+docs
+docker
+docker-compose*.yml
+Makefile
+CLAUDE.md
+CODE_REVIEW.md
+DEMO_GUIDE.md
+sample_test.xlsx
+
+# Secrets / local-only (defense in depth; also gitignored)
+.env
+.env.*
+certs
+
+# Caches / build junk
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+.coverage.*
+htmlcov
+*.sqlite
+*.sqlite3
+.DS_Store
+uv.lock

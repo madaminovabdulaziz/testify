@@ -27,6 +27,7 @@ the bot is alive so external smoke tests can grep for it.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 
 import structlog
@@ -46,10 +47,12 @@ from app.jobs._runtime import set_runtime_container
 from app.jobs.registry import register_recurring_jobs
 from app.jobs.startup_reconciliation import reconcile_attempts
 
-# aiohttp listen address for webhook mode. nginx in front of us terminates
-# TLS and forwards :443 → bot:8080 (ARCHITECTURE_SPEC §14.1).
+# aiohttp listen address for webhook mode. A reverse proxy in front of us
+# terminates TLS and forwards to this port: nginx → bot:8080 in the compose
+# setup (ARCHITECTURE_SPEC §14.1), or Railway's edge → $PORT in the managed
+# setup. ``PORT`` (when set, e.g. by Railway) overrides the default.
 _WEBHOOK_BIND_HOST = "0.0.0.0"
-_WEBHOOK_BIND_PORT = 8080
+_WEBHOOK_BIND_PORT = int(os.environ.get("PORT", "8080"))
 
 logger = structlog.get_logger()
 

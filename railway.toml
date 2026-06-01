@@ -1,0 +1,19 @@
+# Railway service config (config-as-code). Full setup — env vars, the MySQL +
+# Redis plugins, and the one-time first-admin seed — is in docs/RAILWAY.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# start.sh runs migrations, then execs the bot in webhook mode.
+startCommand = "bash start.sh"
+# /healthz pings MySQL + Redis; Railway waits for 200 before routing traffic.
+healthcheckPath = "/healthz"
+healthcheckTimeout = 300
+# Surface a crash loop instead of restarting forever (e.g. a failing migration).
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+# Single replica: required by the in-process APScheduler and the
+# migrate-on-start model in start.sh (avoids a multi-replica migration race).
+numReplicas = 1
