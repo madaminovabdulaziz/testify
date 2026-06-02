@@ -33,12 +33,27 @@ if config.config_file_name is not None:
 
 
 def _build_url() -> str:
-    """Compose an async MySQL URL from environment variables."""
-    host = os.environ.get("DB_HOST", "localhost")
+    """Compose an async MySQL URL from environment variables.
+
+    ``DB_HOST``/``DB_USER``/``DB_PASSWORD``/``DB_NAME`` are required and have no
+    default — the same contract as ``app.core.config.Settings``. Falling back to
+    ``localhost`` here used to mask a missing-config (e.g. unset Railway
+    variables) as a confusing connection-refused traceback; fail loudly instead.
+    Locally these come from ``.env`` (the Makefile sources it before alembic).
+    """
+    missing = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError(
+            "Missing required DB env var(s): "
+            + ", ".join(missing)
+            + ". On Railway set the DB_* reference variables (docs/RAILWAY.md §3); "
+            "locally source .env first."
+        )
+    host = os.environ["DB_HOST"]
     port = os.environ.get("DB_PORT", "3306")
-    user = os.environ.get("DB_USER", "bot")
-    password = os.environ.get("DB_PASSWORD", "botpass")
-    name = os.environ.get("DB_NAME", "attestation")
+    user = os.environ["DB_USER"]
+    password = os.environ["DB_PASSWORD"]
+    name = os.environ["DB_NAME"]
     return f"mysql+asyncmy://{user}:{password}@{host}:{port}/{name}"
 
 
