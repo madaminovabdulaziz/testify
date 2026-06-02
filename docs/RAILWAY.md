@@ -49,13 +49,27 @@ variable names in each service's Variables tab.
 | `WEBHOOK_SECRET` | `openssl rand -hex 32` | Verified on every update. **Required.** |
 | `ADMIN_GROUP_ID` | _(negative supergroup id)_ | **Required.** Add the bot to the admin group; get the id via @RawDataBot. |
 | `WEBHOOK_PATH` | `/webhook/<openssl rand -hex 16>` | Optional but recommended — a path-secret layer. Default `/webhook`. |
-| `DB_HOST` | `${{ MySQL.MYSQLHOST }}` | Use the private host for in-project networking. |
-| `DB_PORT` | `${{ MySQL.MYSQLPORT }}` | |
-| `DB_USER` | `${{ MySQL.MYSQLUSER }}` | |
-| `DB_PASSWORD` | `${{ MySQL.MYSQLPASSWORD }}` | secret |
-| `DB_NAME` | `${{ MySQL.MYSQLDATABASE }}` | |
-| `REDIS_URL` | `${{ Redis.REDIS_URL }}` | Prefer the private URL if exposed. |
+| `DATABASE_URL` | `${{ MySQL.MYSQL_URL }}` | **Required.** One variable for the whole DB connection (private host). The app rewrites the driver to `asyncmy` automatically. |
+| `REDIS_URL` | `${{ Redis.REDIS_URL }}` | **Required.** Prefer the private URL if exposed. |
 | `SENTRY_DSN` | _(your Sentry DSN)_ | Optional but strongly recommended for prod. |
+
+> **Database connection — pick one style.** The simplest is the single
+> `DATABASE_URL` above (the app also accepts `MYSQL_URL` directly, so even that
+> name works). If you'd rather wire the parts individually, omit `DATABASE_URL`
+> and set all five discrete vars instead — they take exactly the same reference
+> values:
+>
+> | Variable | Value |
+> |---|---|
+> | `DB_HOST` | `${{ MySQL.MYSQLHOST }}` (private `*.railway.internal` host) |
+> | `DB_PORT` | `${{ MySQL.MYSQLPORT }}` |
+> | `DB_USER` | `${{ MySQL.MYSQLUSER }}` |
+> | `DB_PASSWORD` | `${{ MySQL.MYSQLPASSWORD }}` |
+> | `DB_NAME` | `${{ MySQL.MYSQLDATABASE }}` |
+>
+> Reference variables only resolve if the service name in `${{ … }}` exactly
+> matches your MySQL service (default `MySQL`). If neither style is fully set,
+> the boot fails fast with `Database not configured…`.
 
 `WEBHOOK_URL` is **auto-derived** by `start.sh` as
 `https://$RAILWAY_PUBLIC_DOMAIN$WEBHOOK_PATH`. Only set it explicitly if you use

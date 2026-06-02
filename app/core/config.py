@@ -8,10 +8,12 @@ in the ``settings`` table and is read via ``SettingsService``.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from functools import cached_property
 from typing import Literal
 
-from pydantic import HttpUrl, RedisDsn, SecretStr, model_validator
+from pydantic import AliasChoices, Field, HttpUrl, RedisDsn, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,11 +31,20 @@ class Settings(BaseSettings):
     admin_group_id: int
 
     # ---------- Database ----------
-    db_host: str
+    # Provide EITHER a full connection URL — DATABASE_URL, or Railway's injected
+    # MYSQL_URL — OR the discrete DB_* fields below. The URL form is preferred on
+    # Railway: one variable (`${{ MySQL.MYSQL_URL }}`) instead of five, and far
+    # harder to misconfigure. Whatever driver the URL names is normalized to
+    # asyncmy. ``_require_database_config`` enforces that one of the two is set.
+    database_url: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("DATABASE_URL", "MYSQL_URL"),
+    )
+    db_host: str | None = None
     db_port: int = 3306
-    db_user: str
-    db_password: SecretStr
-    db_name: str
+    db_user: str | None = None
+    db_password: SecretStr | None = None
+    db_name: str | None = None
     # 20 + 5 overflow gives headroom for bursty concurrent attempts without
     # starving the pool (CODE_REVIEW N11).
     db_pool_size: int = 20
@@ -71,16 +82,70 @@ class Settings(BaseSettings):
             raise ValueError("webhook_url and webhook_secret are required when env != 'dev'")
         return self
 
+    @model_validator(mode="after")
+    def _require_database_config(self) -> Settings:
+        """One DB config style must be present: a URL, or the discrete fields."""
+        if self.database_url is None and not all(
+            (self.db_host, self.db_user, self.db_password, self.db_name)
+        ):
+            raise ValueError(
+                "Database not configured: set DATABASE_URL (or MYSQL_URL), or all of "
+                "DB_HOST/DB_USER/DB_PASSWORD/DB_NAME."
+            )
+        return self
+
     @cached_property
     def db_url(self) -> SecretStr:
-        """Async SQLAlchemy URL built from the discrete DB_* fields.
+        """Async SQLAlchemy URL — from DATABASE_URL/MYSQL_URL or the discrete DB_* fields.
 
-        Returned as ``SecretStr`` so the embedded password can't leak through
-        an accidental ``repr``/log of the URL (CODE_REVIEW L13); callers use
-        ``.get_secret_value()``. Uses ``asyncmy`` per ARCHITECTURE_SPEC §1.
+        Returned as ``SecretStr`` so the embedded password can't leak through an
+        accidental ``repr``/log of the URL (CODE_REVIEW L13); callers use
+        ``.get_secret_value()``. Always uses ``asyncmy`` per ARCHITECTURE_SPEC §1.
         """
+        if self.database_url is not None:
+            return SecretStr(to_asyncmy_url(self.database_url.get_secret_value()))
+        # Guaranteed non-None by ``_require_database_config``.
+        assert self.db_host and self.db_user and self.db_password and self.db_name
         password = self.db_password.get_secret_value()
         return SecretStr(
             f"mysql+asyncmy://{self.db_user}:{password}"
             f"@{self.db_host}:{self.db_port}/{self.db_name}"
         )
+
+
+def to_asyncmy_url(url: str) -> str:
+    """Rewrite any MySQL connection URL to the async ``asyncmy`` driver scheme.
+
+    Railway's MySQL plugin injects ``MYSQL_URL`` as ``mysql://…``; SQLAlchemy's
+    async engine needs ``mysql+asyncmy://…``. Whatever driver the scheme names
+    (``mysql``, ``mysql+pymysql``, …) is normalized to ``mysql+asyncmy``.
+    """
+    _, sep, rest = url.partition("://")
+    if not sep:
+        raise ValueError(f"Not a valid database URL (missing '://'): {url!r}")
+    return f"mysql+asyncmy://{rest}"
+
+
+def build_async_mysql_url(env: Mapping[str, str] | None = None) -> str:
+    """Async MySQL URL from a raw environment mapping — for alembic + standalone scripts.
+
+    Mirrors ``Settings.db_url`` but reads the environment directly (default
+    ``os.environ``) so migrations and the seed scripts don't need the full
+    Telegram config to run. Accepts a full ``DATABASE_URL``/``MYSQL_URL`` or the
+    discrete ``DB_*`` vars, and raises a clear error if neither is present.
+    """
+    env = os.environ if env is None else env
+    url = env.get("DATABASE_URL") or env.get("MYSQL_URL")
+    if url:
+        return to_asyncmy_url(url)
+    missing = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not env.get(k)]
+    if missing:
+        raise RuntimeError(
+            "Database not configured. Set DATABASE_URL (or MYSQL_URL) — e.g. Railway's "
+            "${{ MySQL.MYSQL_URL }} — or all of DB_HOST/DB_USER/DB_PASSWORD/DB_NAME "
+            "(missing: " + ", ".join(missing) + "). Locally, source .env first."
+        )
+    return (
+        f"mysql+asyncmy://{env['DB_USER']}:{env['DB_PASSWORD']}"
+        f"@{env['DB_HOST']}:{env.get('DB_PORT', '3306')}/{env['DB_NAME']}"
+    )

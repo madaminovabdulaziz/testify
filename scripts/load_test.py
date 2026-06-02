@@ -42,6 +42,7 @@ from openpyxl import Workbook
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.core.config import build_async_mysql_url
 from app.models.admin import Admin
 from app.models.attempt import Attempt
 from app.models.test import Test
@@ -65,13 +66,8 @@ _LOAD_TEST_ADMIN_TG = _LOAD_TEST_TG_BASE - 1
 
 
 def _db_url_from_env() -> str:
-    """Build an async MySQL URL from the standard env vars."""
-    host = os.environ.get("DB_HOST", "127.0.0.1")
-    port = int(os.environ.get("DB_PORT", "3306"))
-    user = os.environ.get("DB_USER", "bot")
-    password = os.environ.get("DB_PASSWORD", "botpass")
-    name = os.environ.get("DB_NAME", "attestation")
-    return f"mysql+asyncmy://{user}:{password}@{host}:{port}/{name}"
+    """Async MySQL URL from env — DATABASE_URL/MYSQL_URL or the discrete DB_* vars."""
+    return build_async_mysql_url(os.environ)
 
 
 def _valid_xlsx_bytes(correct: str = "A") -> bytes:

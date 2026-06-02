@@ -22,6 +22,7 @@ from alembic import context
 # and registers each table on ``Base.metadata``. Without that side-effect,
 # autogenerate would only see the tables whose modules happen to have been
 # imported elsewhere.
+from app.core.config import build_async_mysql_url
 from app.models import Base
 
 target_metadata = Base.metadata
@@ -33,28 +34,13 @@ if config.config_file_name is not None:
 
 
 def _build_url() -> str:
-    """Compose an async MySQL URL from environment variables.
+    """Async MySQL URL from env — DATABASE_URL/MYSQL_URL or the discrete DB_* vars.
 
-    ``DB_HOST``/``DB_USER``/``DB_PASSWORD``/``DB_NAME`` are required and have no
-    default — the same contract as ``app.core.config.Settings``. Falling back to
-    ``localhost`` here used to mask a missing-config (e.g. unset Railway
-    variables) as a confusing connection-refused traceback; fail loudly instead.
+    Delegates to ``app.core.config.build_async_mysql_url`` so migrations use the
+    exact same resolution (and error message) as the app and the seed scripts.
     Locally these come from ``.env`` (the Makefile sources it before alembic).
     """
-    missing = [k for k in ("DB_HOST", "DB_USER", "DB_PASSWORD", "DB_NAME") if not os.environ.get(k)]
-    if missing:
-        raise RuntimeError(
-            "Missing required DB env var(s): "
-            + ", ".join(missing)
-            + ". On Railway set the DB_* reference variables (docs/RAILWAY.md §3); "
-            "locally source .env first."
-        )
-    host = os.environ["DB_HOST"]
-    port = os.environ.get("DB_PORT", "3306")
-    user = os.environ["DB_USER"]
-    password = os.environ["DB_PASSWORD"]
-    name = os.environ["DB_NAME"]
-    return f"mysql+asyncmy://{user}:{password}@{host}:{port}/{name}"
+    return build_async_mysql_url(os.environ)
 
 
 def run_migrations_offline() -> None:

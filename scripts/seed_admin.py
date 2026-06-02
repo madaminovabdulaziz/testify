@@ -17,11 +17,12 @@ Usage::
     # role is ``owner`` by default; pass ``--role moderator`` for the
     # 1–3 trusted assistants the teacher hands the bot to.
 
-Connection params are taken from the standard ``DB_HOST`` / ``DB_PORT``
-/ ``DB_USER`` / ``DB_PASSWORD`` / ``DB_NAME`` env vars (or whatever
-``.env`` defines). The script is intentionally standalone — it does
-not require ``BOT_TOKEN`` or any of the Telegram envs, so it can run
-from a fresh deploy shell before those are configured.
+The connection comes from ``DATABASE_URL`` / ``MYSQL_URL`` (a full URL,
+e.g. Railway's injected ``${{ MySQL.MYSQL_URL }}``) or the discrete
+``DB_HOST`` / ``DB_PORT`` / ``DB_USER`` / ``DB_PASSWORD`` / ``DB_NAME``
+env vars (or whatever ``.env`` defines). The script is intentionally
+standalone — it does not require ``BOT_TOKEN`` or any of the Telegram
+envs, so it can run from a fresh deploy shell before those are configured.
 
 Re-running with the same ``telegram_id`` is a no-op: the script
 verifies the existing row has the right role (and warns if it does
@@ -40,19 +41,15 @@ from typing import Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.core.config import build_async_mysql_url
 from app.models.admin import Admin
 
 Role = Literal["owner", "moderator"]
 
 
 def _db_url_from_env() -> str:
-    """Build an async MySQL URL from the standard env vars (mirrors load_test)."""
-    host = os.environ.get("DB_HOST", "127.0.0.1")
-    port = int(os.environ.get("DB_PORT", "3306"))
-    user = os.environ.get("DB_USER", "bot")
-    password = os.environ.get("DB_PASSWORD", "botpass")
-    name = os.environ.get("DB_NAME", "attestation")
-    return f"mysql+asyncmy://{user}:{password}@{host}:{port}/{name}"
+    """Async MySQL URL from env — DATABASE_URL/MYSQL_URL or the discrete DB_* vars."""
+    return build_async_mysql_url(os.environ)
 
 
 async def _seed(telegram_id: int, role: Role) -> int:
