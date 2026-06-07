@@ -11,6 +11,16 @@
 # See docs/RAILWAY.md for the full deploy setup.
 set -euo pipefail
 
+# 0. Default to webhook mode. start.sh is the Railway entrypoint, and Railway's
+#    healthcheck only passes in webhook mode: polling never opens $PORT, so
+#    /healthz can't answer and the deploy fails after the retry window. If ENV
+#    is unset, app.main (Settings.env) defaults to "dev" → polling → silent
+#    failure. Pinning it here makes the entrypoint match its stated intent,
+#    makes the echo below truthful, and turns a missing WEBHOOK_SECRET into an
+#    immediate validator error instead of a silent wrong-mode boot. Override by
+#    setting ENV explicitly (e.g. ENV=staging) in the Railway service variables.
+export ENV="${ENV:-prod}"
+
 # 1. Schema migrations. Idempotent (no-op at head). Running them here — rather
 #    than in a one-shot container as ARCHITECTURE_SPEC §14.4 prescribes — is
 #    safe on Railway because numReplicas=1 (railway.toml), so there is no
@@ -29,7 +39,7 @@ if [ -z "${WEBHOOK_URL:-}" ] && [ -n "${RAILWAY_PUBLIC_DOMAIN:-}" ]; then
   export WEBHOOK_URL="https://${RAILWAY_PUBLIC_DOMAIN}${WEBHOOK_PATH}"
 fi
 
-echo "▶ starting bot (env=${ENV:-prod}, port=${PORT:-8080}, webhook=${WEBHOOK_URL:-<unset>})"
+echo "▶ starting bot (env=${ENV}, port=${PORT:-8080}, webhook=${WEBHOOK_URL:-<unset>})"
 
 # 3. Hand off (PID 1) so SIGTERM reaches the bot for a graceful shutdown.
 exec python -m app.main
