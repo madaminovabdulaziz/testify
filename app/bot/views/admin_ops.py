@@ -11,10 +11,18 @@ from __future__ import annotations
 
 from app.models.user import User
 from app.repositories.attempt_repository import LeaderboardEntry
+from app.repositories.test_repository import TestListEntry
 from app.services.attempt_service import AttemptDetail
 from app.services.stats_service import StatsSnapshot
 from app.utils.datetime import format_timestamp_local
 from app.utils.text import html_escape
+
+# Icon + Russian label per test status, for the «🗂 Тесты» list.
+_TEST_STATUS_LABEL: dict[str, tuple[str, str]] = {
+    "active": ("🟢", "активный"),
+    "archived": ("📦", "архив"),
+    "draft": ("📝", "черновик"),
+}
 
 
 def render_stats(snapshot: StatsSnapshot) -> str:
@@ -74,24 +82,57 @@ def render_user_card(found_user: User, *, pending_count: int) -> str:
     )
 
 
+def render_test_list(entries: list[TestListEntry]) -> str:
+    """Recent-tests list — the admin's discovery surface for ``test_id``.
+
+    Each row leads with ``#<id>`` so the teacher can read it off and chain
+    into ``/leaderboard <id>`` (and from there into ``/attempt <id>``). Counts
+    use the colon form ("вопросов: 50") to sidestep Russian numeral agreement.
+    """
+    if not entries:
+        return (
+            "🗂 <b>Тесты</b>\n\n"
+            "Пока нет ни одного теста. Загрузите первый через «📋 Загрузить тест»."
+        )
+
+    lines = [f"🗂 <b>Тесты</b> (последние {len(entries)})", ""]
+    for entry in entries:
+        icon, label = _TEST_STATUS_LABEL.get(entry.status, ("•", html_escape(entry.status)))
+        lines.append(f"{icon} <b>#{entry.id}</b> · {html_escape(entry.title)}")
+        lines.append(
+            f"   {label} · вопросов: {entry.question_count} · попыток: {entry.attempt_count}"
+        )
+    lines.append("")
+    lines.append(
+        "Дальше: /leaderboard &lt;id&gt; — результаты, /attempt &lt;id&gt; — детали попытки."
+    )
+    return "\n".join(lines)
+
+
 def render_leaderboard(*, test_title: str, entries: list[LeaderboardEntry]) -> str:
-    """Top-N leaderboard table for one test."""
+    """Top-N leaderboard table for one test.
+
+    The ``попытка`` column carries each row's ``attempt_id`` so the admin can
+    chain straight into ``/attempt <id>`` for a per-question breakdown.
+    """
     if not entries:
         return f"🏆 <b>{html_escape(test_title)}</b>\n\nПока нет завершённых попыток."
 
-    rows = ["#  балл  имя"]
+    rows = ["#  балл  попытка  имя"]
     for rank, entry in enumerate(entries, start=1):
         name = entry.full_name or f"user_{entry.user_id}"
-        # Truncate to keep rows narrow.
-        if len(name) > 24:
-            name = name[:23] + "…"
-        rows.append(f"{rank:>2} {entry.score_total_correct:>4}  {name}")
+        # Truncate to keep rows narrow (tighter now that the id column is here).
+        if len(name) > 20:
+            name = name[:19] + "…"
+        rows.append(f"{rank:>2} {entry.score_total_correct:>4}  {entry.attempt_id:>7}  {name}")
 
     return "\n".join(
         [
             f"🏆 <b>{html_escape(test_title)}</b> (топ {len(entries)})",
             "",
             "<pre>" + html_escape("\n".join(rows)) + "</pre>",
+            "",
+            "Детали попытки: /attempt &lt;номер попытки&gt;",
         ]
     )
 

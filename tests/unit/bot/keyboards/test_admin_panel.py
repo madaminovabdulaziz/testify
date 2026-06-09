@@ -13,12 +13,14 @@ from app.core.i18n import (
     BTN_ADMIN_SETTINGS,
     BTN_ADMIN_STATS,
     BTN_ADMIN_TEMPLATE,
+    BTN_ADMIN_TESTS,
     BTN_ADMIN_UNBAN,
     BTN_ADMIN_UPLOAD_TEST,
 )
 
 _EXPECTED_ACTION_BUTTONS = {
     BTN_ADMIN_STATS,
+    BTN_ADMIN_TESTS,
     BTN_ADMIN_UPLOAD_TEST,
     BTN_ADMIN_SETTINGS,
     BTN_ADMIN_FIND,
@@ -30,11 +32,12 @@ _EXPECTED_ACTION_BUTTONS = {
 }
 
 
-def test_admin_panel_layout_is_three_by_three_plus_close_row() -> None:
+def test_admin_panel_layout_is_three_by_three_plus_template_and_close_rows() -> None:
     kb = admin_panel_keyboard()
     rows = kb.keyboard
-    assert len(rows) == 4
-    assert [len(row) for row in rows] == [3, 3, 3, 1]
+    # 3×3 action grid, a full-width template row, then the close row.
+    assert len(rows) == 5
+    assert [len(row) for row in rows] == [3, 3, 3, 1, 1]
 
 
 def test_admin_panel_includes_every_action_button_plus_close() -> None:

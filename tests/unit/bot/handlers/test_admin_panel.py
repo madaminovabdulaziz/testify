@@ -13,8 +13,10 @@ from app.bot.handlers.admin.panel import (
     panel_find_run,
     panel_find_start,
     panel_stats,
+    panel_tests,
 )
 from app.bot.states.admin import AdminPanelState
+from app.repositories.test_repository import TestListEntry
 from app.services.stats_service import StatsSnapshot
 
 
@@ -99,6 +101,30 @@ async def test_panel_stats_renders_snapshot() -> None:
     assert "10" in text
 
 
+async def test_panel_tests_lists_recent() -> None:
+    msg = _message(text="🗂 Тесты")
+    services = MagicMock()
+    services.test.list_recent = AsyncMock(
+        return_value=[
+            TestListEntry(
+                id=5,
+                title="Тест от 2026-06-09",
+                status="active",
+                question_count=50,
+                attempt_count=23,
+                published_at=None,
+            ),
+        ]
+    )
+    container = _container(services)
+
+    await panel_tests(msg, session=MagicMock(), user=_admin_user(), container=container)
+
+    services.test.list_recent.assert_awaited_once_with(limit=15)
+    text = msg.answer.await_args.args[0]
+    assert "#5" in text
+
+
 # ============================================================
 # Multi-step: find — start prompts + sets state, then run executes
 # ============================================================
@@ -147,7 +173,7 @@ async def test_find_run_renders_user_card_on_match() -> None:
     assert "Alice Smith" in text
     # After the result, the keyboard is restored to the full admin panel.
     kb = msg.answer.await_args.kwargs.get("reply_markup")
-    assert kb is not None and len(kb.keyboard) == 4
+    assert kb is not None and len(kb.keyboard) == 5
 
 
 async def test_find_run_handles_missing_user() -> None:
@@ -221,4 +247,4 @@ async def test_panel_cancel_clears_state_and_re_shows_panel() -> None:
     text = msg.answer.await_args.args[0]
     assert "отменено" in text.lower()
     kb = msg.answer.await_args.kwargs.get("reply_markup")
-    assert kb is not None and len(kb.keyboard) == 4
+    assert kb is not None and len(kb.keyboard) == 5

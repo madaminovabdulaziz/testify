@@ -1,4 +1,4 @@
-"""Admin operations: /stats /find /ban /unban /leaderboard /attempt.
+"""Admin operations: /stats /tests /find /ban /unban /leaderboard /attempt.
 
 PRODUCT_BLUEPRINT §8.9 + ARCHITECTURE_SPEC §8.1/§8.4. All gated by
 :class:`AdminOnly`. Output is HTML; every user-provided string is
@@ -28,6 +28,7 @@ from app.bot.views.admin_ops import (
     render_attempt_detail,
     render_leaderboard,
     render_stats,
+    render_test_list,
     render_user_card,
 )
 from app.core.container import Container, Services
@@ -67,6 +68,23 @@ async def cmd_stats(
     services = container.services(session)
     snapshot = await services.stats.snapshot()
     await message.answer(render_stats(snapshot), parse_mode="HTML")
+
+
+# ============================================================
+# /tests
+# ============================================================
+
+
+@router.message(Command("tests"))
+async def cmd_tests(
+    message: Message,
+    session: AsyncSession,
+    user: User,
+    container: Container,
+) -> None:
+    services = container.services(session)
+    entries = await services.test.list_recent(limit=15)
+    await message.answer(render_test_list(entries), parse_mode="HTML")
 
 
 # ============================================================

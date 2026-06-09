@@ -41,6 +41,7 @@ from app.bot.views.admin_ops import (
     render_attempt_detail,
     render_leaderboard,
     render_stats,
+    render_test_list,
     render_user_card,
 )
 from app.core.container import Container
@@ -54,6 +55,7 @@ from app.core.i18n import (
     BTN_ADMIN_SETTINGS,
     BTN_ADMIN_STATS,
     BTN_ADMIN_TEMPLATE,
+    BTN_ADMIN_TESTS,
     BTN_ADMIN_UNBAN,
     BTN_ADMIN_UPLOAD_TEST,
 )
@@ -130,6 +132,19 @@ async def panel_stats(
     services = container.services(session)
     snapshot = await services.stats.snapshot()
     await message.answer(render_stats(snapshot), parse_mode="HTML")
+
+
+@router.message(F.text == BTN_ADMIN_TESTS)
+async def panel_tests(
+    message: Message,
+    session: AsyncSession,
+    user: User,
+    container: Container,
+) -> None:
+    """Mirrors /tests — list recent tests with ids for leaderboard/attempt lookup."""
+    services = container.services(session)
+    entries = await services.test.list_recent(limit=15)
+    await message.answer(render_test_list(entries), parse_mode="HTML")
 
 
 @router.message(F.text == BTN_ADMIN_SETTINGS)

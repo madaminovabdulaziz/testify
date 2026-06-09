@@ -8,11 +8,36 @@ the moves.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
+
 from sqlalchemy import delete, func, select, update
 
+from app.models.attempt import Attempt
+from app.models.question import Question
 from app.models.test import Test
 from app.repositories.base import BaseRepository
 from app.utils.datetime import now_utc
+
+
+@dataclass(frozen=True)
+class TestListEntry:
+    """One row of the admin test list returned by :meth:`TestRepository.list_recent`.
+
+    ``attempt_count`` is *finished* attempts only (``submitted`` + ``expired``)
+    so it matches what the admin will then see in ``/leaderboard <id>``.
+    """
+
+    # Tell pytest this isn't a unittest-style test class — the ``Test*``
+    # python_classes pattern would otherwise try to collect it.
+    __test__ = False
+
+    id: int
+    title: str
+    status: str
+    question_count: int
+    attempt_count: int
+    published_at: datetime | None
 
 
 class TestRepository(BaseRepository):
@@ -93,3 +118,56 @@ class TestRepository(BaseRepository):
         stmt = select(Test.status, func.count()).group_by(Test.status)
         rows = await self._session.execute(stmt)
         return {status: int(count) for status, count in rows}
+
+    async def list_recent(self, *, limit: int = 15) -> list[TestListEntry]:
+        """Newest ``limit`` tests with their question + finished-attempt counts.
+
+        Feeds the admin «🗂 Тесты» list — the discovery surface that lets the
+        teacher read off a ``test_id`` to hand to ``/leaderboard`` or to find
+        an attempt. The two counts use *scalar subqueries* rather than JOIN +
+        GROUP BY on purpose: joining both ``questions`` (50 rows/test) and
+        ``attempts`` (N rows/test) in one query multiplies into a 50×N
+        cartesian product that would inflate both counts. Each subquery hits
+        an index on ``test_id`` and the result set is tiny (≤ ``limit`` tests).
+        """
+        question_count = (
+            select(func.count())
+            .select_from(Question)
+            .where(Question.test_id == Test.id)
+            .scalar_subquery()
+            .label("question_count")
+        )
+        attempt_count = (
+            select(func.count())
+            .select_from(Attempt)
+            .where(
+                Attempt.test_id == Test.id,
+                Attempt.status.in_(("submitted", "expired")),
+            )
+            .scalar_subquery()
+            .label("attempt_count")
+        )
+        stmt = (
+            select(
+                Test.id,
+                Test.title,
+                Test.status,
+                Test.published_at,
+                question_count,
+                attempt_count,
+            )
+            .order_by(Test.id.desc())
+            .limit(limit)
+        )
+        rows = await self._session.execute(stmt)
+        return [
+            TestListEntry(
+                id=int(row.id),
+                title=row.title,
+                status=row.status,
+                question_count=int(row.question_count),
+                attempt_count=int(row.attempt_count),
+                published_at=row.published_at,
+            )
+            for row in rows
+        ]

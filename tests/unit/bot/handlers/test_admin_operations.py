@@ -12,9 +12,11 @@ from app.bot.handlers.admin.operations import (
     cmd_find,
     cmd_leaderboard,
     cmd_stats,
+    cmd_tests,
     cmd_unban,
 )
 from app.repositories.attempt_repository import LeaderboardEntry
+from app.repositories.test_repository import TestListEntry
 from app.services.attempt_service import AttemptDetail
 from app.services.stats_service import StatsSnapshot
 
@@ -86,6 +88,57 @@ async def test_stats_renders_each_status_bucket() -> None:
     assert "30" in text  # approved
     assert "5" in text  # pending
     assert "100" in text  # finished attempts (90+10)
+
+
+# ============================================================
+# /tests
+# ============================================================
+
+
+async def test_tests_lists_recent_with_ids() -> None:
+    services = MagicMock()
+    services.test.list_recent = AsyncMock(
+        return_value=[
+            TestListEntry(
+                id=5,
+                title="Тест от 2026-06-09",
+                status="active",
+                question_count=50,
+                attempt_count=23,
+                published_at=datetime(2026, 6, 9, 8, 0, tzinfo=UTC),
+            ),
+        ]
+    )
+    container = _container(services)
+    message = _message()
+
+    await cmd_tests(
+        message,
+        session=MagicMock(),
+        user=_admin_user(),
+        container=container,
+    )
+
+    services.test.list_recent.assert_awaited_once_with(limit=15)
+    text = message.answer.await_args.args[0]
+    assert "#5" in text
+    assert "активный" in text
+
+
+async def test_tests_empty() -> None:
+    services = MagicMock()
+    services.test.list_recent = AsyncMock(return_value=[])
+    container = _container(services)
+    message = _message()
+
+    await cmd_tests(
+        message,
+        session=MagicMock(),
+        user=_admin_user(),
+        container=container,
+    )
+
+    assert "нет ни одного теста" in message.answer.await_args.args[0].lower()
 
 
 # ============================================================

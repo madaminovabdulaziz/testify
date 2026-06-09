@@ -1,16 +1,23 @@
 """Persistent reply keyboard for the teacher's admin panel (/admin).
 
-Layout — 3×3 grid of action buttons + a full-width "close" row:
+Layout — 3×3 grid of action buttons, a single-button row, + a
+full-width "close" row:
 
     ┌──────────────┬──────────────────┬────────────────┐
-    │ 📊 Статистика │ 📋 Загрузить тест │ ⚙️ Настройки    │
+    │ 📊 Статистика │ 🗂 Тесты          │ ⚙️ Настройки    │
     ├──────────────┼──────────────────┼────────────────┤
-    │ 🔍 Найти      │ 🏆 Лидерборд      │ 🔎 Попытка      │
+    │ 📋 Загрузить  │ 🏆 Лидерборд      │ 🔎 Попытка      │
     ├──────────────┼──────────────────┼────────────────┤
-    │ 🚫 Забанить   │ ✅ Разбанить      │ 📤 Шаблон Excel │
+    │ 🔍 Найти      │ 🚫 Забанить       │ ✅ Разбанить    │
     ├──────────────┴──────────────────┴────────────────┤
+    │                  📤 Шаблон Excel                  │
+    ├──────────────────────────────────────────────────┤
     │              🔙 Закрыть админ-панель              │
     └──────────────────────────────────────────────────┘
+
+«🗂 Тесты» lists recent tests with their ids so the teacher can read
+off a ``test_id`` for 🏆 Лидерборд, then an ``attempt_id`` from the
+board for 🔎 Детали попытки — closing the id-discovery chain.
 
 Plus a single-button "cancel" keyboard shown during multi-step flows
 (when the bot is waiting for the admin to enter an id / query). This
@@ -31,30 +38,32 @@ from app.core.i18n import (
     BTN_ADMIN_SETTINGS,
     BTN_ADMIN_STATS,
     BTN_ADMIN_TEMPLATE,
+    BTN_ADMIN_TESTS,
     BTN_ADMIN_UNBAN,
     BTN_ADMIN_UPLOAD_TEST,
 )
 
 
 def admin_panel_keyboard() -> ReplyKeyboardMarkup:
-    """3×3 admin grid + a single-button close-panel row."""
+    """3×3 admin grid + a full-width template row + a close-panel row."""
     return ReplyKeyboardMarkup(
         keyboard=[
             [
                 KeyboardButton(text=BTN_ADMIN_STATS),
-                KeyboardButton(text=BTN_ADMIN_UPLOAD_TEST),
+                KeyboardButton(text=BTN_ADMIN_TESTS),
                 KeyboardButton(text=BTN_ADMIN_SETTINGS),
             ],
             [
-                KeyboardButton(text=BTN_ADMIN_FIND),
+                KeyboardButton(text=BTN_ADMIN_UPLOAD_TEST),
                 KeyboardButton(text=BTN_ADMIN_LEADERBOARD),
                 KeyboardButton(text=BTN_ADMIN_ATTEMPT),
             ],
             [
+                KeyboardButton(text=BTN_ADMIN_FIND),
                 KeyboardButton(text=BTN_ADMIN_BAN),
                 KeyboardButton(text=BTN_ADMIN_UNBAN),
-                KeyboardButton(text=BTN_ADMIN_TEMPLATE),
             ],
+            [KeyboardButton(text=BTN_ADMIN_TEMPLATE)],
             [KeyboardButton(text=BTN_ADMIN_CLOSE)],
         ],
         resize_keyboard=True,

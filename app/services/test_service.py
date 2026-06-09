@@ -22,7 +22,7 @@ from sqlalchemy.exc import IntegrityError
 from app.exceptions import PublishConflictError, TestParseError
 from app.models.test import Test
 from app.repositories.question_repository import QuestionDraft, QuestionRepository
-from app.repositories.test_repository import TestRepository
+from app.repositories.test_repository import TestListEntry, TestRepository
 from app.services.excel_parser import ExcelParser, ParsedTest
 from app.utils.datetime import now_utc
 
@@ -154,6 +154,14 @@ class TestService:
     async def count_by_status(self) -> dict[str, int]:
         """``{status: count}`` across the tests table — feeds /stats."""
         return await self._tests.count_by_status()
+
+    async def list_recent(self, *, limit: int = 15) -> list[TestListEntry]:
+        """Recent tests (newest first) with question + finished-attempt counts.
+
+        Feeds the admin «🗂 Тесты» list — the surface that lets the teacher
+        discover a ``test_id`` to pass to ``/leaderboard``.
+        """
+        return await self._tests.list_recent(limit=limit)
 
     # ---------- publish ----------
 

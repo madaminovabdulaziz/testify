@@ -45,6 +45,7 @@ BTN_MENU_HELP: Final[str] = "❓ Помощь"
 
 # ---------- Admin panel (reply keyboard after /admin) ----------
 BTN_ADMIN_STATS: Final[str] = "📊 Статистика"
+BTN_ADMIN_TESTS: Final[str] = "🗂 Тесты"
 BTN_ADMIN_UPLOAD_TEST: Final[str] = "📋 Загрузить тест"
 BTN_ADMIN_SETTINGS: Final[str] = "⚙️ Настройки"
 BTN_ADMIN_FIND: Final[str] = "🔍 Найти ученика"
