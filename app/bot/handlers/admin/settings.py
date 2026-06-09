@@ -65,8 +65,8 @@ _PREVIEW_SAMPLES: Final[dict[str, str]] = {
     "score": "42",
 }
 
-_USAGE_SET = "Использование: /set <ключ> <значение>"
-_USAGE_PREVIEW = "Использование: /preview <ключ>"
+_USAGE_SET = "Использование: /set &lt;ключ&gt; &lt;значение&gt;"
+_USAGE_PREVIEW = "Использование: /preview &lt;ключ&gt;"
 _UNKNOWN_KEY_TEMPLATE = "❌ Неизвестный ключ: <code>{key}</code>\n\nДоступные ключи: /settings"
 
 

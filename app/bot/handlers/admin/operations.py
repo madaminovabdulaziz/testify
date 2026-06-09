@@ -42,11 +42,11 @@ router = Router(name="admin_operations")
 # (including the common-router fallback in private chats).
 router.message.filter(AdminOnly())
 
-_USAGE_FIND = "Использование: /find <телефон | username | код>"
-_USAGE_BAN = "Использование: /ban <user_id>"
-_USAGE_UNBAN = "Использование: /unban <user_id>"
-_USAGE_LEADERBOARD = "Использование: /leaderboard <test_id>"
-_USAGE_ATTEMPT = "Использование: /attempt <attempt_id>"
+_USAGE_FIND = "Использование: /find &lt;телефон | username | код&gt;"
+_USAGE_BAN = "Использование: /ban &lt;user_id&gt;"
+_USAGE_UNBAN = "Использование: /unban &lt;user_id&gt;"
+_USAGE_LEADERBOARD = "Использование: /leaderboard &lt;test_id&gt;"
+_USAGE_ATTEMPT = "Использование: /attempt &lt;attempt_id&gt;"
 _USER_NOT_FOUND = "Пользователь не найден."
 _TEST_NOT_FOUND = "Тест не найден."
 _ATTEMPT_NOT_FOUND = "Попытка не найдена."
