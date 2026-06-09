@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 
 import structlog
-from aiogram.exceptions import TelegramAPIError
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.types import ErrorEvent
 
 from app.bot.middlewares._util import get_event_obj
@@ -24,6 +24,22 @@ from app.exceptions import UserError
 logger = structlog.get_logger()
 
 _GENERIC_USER_MESSAGE = "Произошла ошибка. Попробуйте позже."
+
+# A callback query can only be answered for a short window. When the bot
+# answers too late — the loop was briefly busy, or (the common case on a
+# platform that redeploys often) Telegram replayed a pre-restart update
+# because we set the webhook with ``drop_pending_updates=False`` — the
+# ``answerCallbackQuery`` call raises this. It is benign: the user's tap is
+# stale, nothing is waiting on the spinner, and there is nothing to tell
+# them. Swallow it quietly instead of paging Sentry + DMing a scary error.
+_STALE_CALLBACK_MARKERS = ("query is too old", "query id is invalid")
+
+
+def _is_stale_callback_error(exc: BaseException) -> bool:
+    if not isinstance(exc, TelegramBadRequest):
+        return False
+    message = (exc.message or "").lower()
+    return any(marker in message for marker in _STALE_CALLBACK_MARKERS)
 
 
 async def global_error_handler(event: ErrorEvent) -> bool:
@@ -37,6 +53,11 @@ async def global_error_handler(event: ErrorEvent) -> bool:
 
     if isinstance(exc, UserError):
         await _send_user_message(update, exc.user_message)
+        return True
+
+    if _is_stale_callback_error(exc):
+        # Benign: an expired/replayed callback ack. No Sentry, no user DM.
+        logger.debug("stale_callback_answer_ignored")
         return True
 
     logger.exception("unhandled_exception")
