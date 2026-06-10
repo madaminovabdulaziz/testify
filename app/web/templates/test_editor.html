@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% from "_question_card.html" import question_card %}
+{% block title %}{{ test.title }} — Панель администратора{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Черновик #{{ test.id }}</h1>
+  <span class="badge badge-draft">Черновик</span>
+</div>
+
+{% if flash %}<p class="alert alert-ok">{{ flash }}</p>{% endif %}
+{% if flash_error %}<p class="alert alert-error">{{ flash_error }}</p>{% endif %}
+
+{% if form_errors or field_errors %}
+<div class="error-summary">
+  <strong>Исправьте ошибки и сохраните снова:</strong>
+  <ul>
+    {% for e in form_errors %}<li>{{ e }}</li>{% endfor %}
+    {% for pos, errs in field_errors|dictsort %}
+      <li><a href="#q{{ pos }}">Вопрос {{ pos }}</a>: {{ errs.values()|join(" ") }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" action="/panel/tests/{{ test.id }}" id="editor-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <div class="editor-title-row">
+    <label class="field-label" for="title">Название теста</label>
+    <input type="text" id="title" name="title" maxlength="200" value="{{ title_value }}" required>
+  </div>
+
+  {% for key, label, lo, hi in section_blocks %}
+  <section class="section-block">
+    <h2>{{ label }} (вопросы {{ lo }}–{{ hi }})</h2>
+    {% for pos in range(lo, hi + 1) %}
+      {{ question_card(pos, values.get(pos), field_errors.get(pos), image_attached.get(pos, False), test.id) }}
+    {% endfor %}
+  </section>
+  {% endfor %}
+
+  <div class="actionbar">
+    <button type="submit" class="btn btn-primary" id="save-btn">💾 Сохранить</button>
+    <span class="publish-hint{% if not blockers %} ready{% endif %}" id="publish-hint">
+      {% if blockers %}До публикации: {{ blockers|length }} замечани{{ "е" if blockers|length == 1 else "й" }}{% else %}Готов к публикации{% endif %}
+    </span>
+    <span class="spacer"></span>
+    <button type="button" class="btn btn-secondary" id="publish-open"
+            {% if blockers %}disabled title="Сначала устраните замечания"{% endif %}>📢 Опубликовать…</button>
+    <button type="submit" class="btn btn-danger" form="delete-form"
+            onclick="return confirm('Удалить черновик безвозвратно?');">🗑 Удалить</button>
+  </div>
+</form>
+
+<form method="post" action="/panel/tests/{{ test.id }}/delete" id="delete-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+</form>
+
+<dialog id="publish-dialog">
+  <h2>Опубликовать тест?</h2>
+  <p>Текущий активный тест будет отправлен в архив. Опубликованный тест нельзя редактировать.</p>
+  {% if blockers %}
+  <ul class="blockers">{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul>
+  {% endif %}
+  <form method="post" action="/panel/tests/{{ test.id }}/publish">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="notify-row">
+      <input type="checkbox" name="notify" value="1" checked>
+      <span>Разослать уведомление студентам</span>
+    </label>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-secondary" id="publish-cancel">Отмена</button>
+      <button type="submit" class="btn btn-primary" {% if blockers %}disabled{% endif %}>Опубликовать</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+window.PANEL = {
+  testId: {{ test.id }},
+  csrf: "{{ csrf_token }}",
+  captionOverhead: 17,
+  captionMax: 850
+};
+</script>
+{% endblock %}
+{% block scripts %}
+<script src="/panel/static/panel.js" defer></script>
+{% endblock %}

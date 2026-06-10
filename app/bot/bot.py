@@ -15,6 +15,7 @@ from app.bot.handlers import (
     admin_receipts,
     admin_settings,
     admin_tests,
+    admin_weblogin,
     common,
     onboarding,
     payment,
@@ -81,6 +82,7 @@ def build_dispatcher(redis: Redis, container: Container) -> Dispatcher:
     # filter so the teacher's DM works too (PRODUCT_BLUEPRINT §14.3).
     dispatcher.include_router(admin_operations.router)
     dispatcher.include_router(admin_settings.router)
+    dispatcher.include_router(admin_weblogin.router)
     # admin_panel matches on reply-keyboard button text; included after
     # the slash-command admin routers so /set, /find etc. still win when
     # the admin types a command, but before the student / fallback

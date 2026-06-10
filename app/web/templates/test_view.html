@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_question_card.html" import question_card %}
+{% block title %}{{ test.title }} — Панель администратора{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ test.title }}</h1>
+  {% if test.status == "active" %}<span class="badge badge-active">Активный</span>
+  {% else %}<span class="badge badge-archived">В архиве</span>{% endif %}
+</div>
+
+<p class="alert alert-warn">
+  Опубликованный тест нельзя редактировать — результаты студентов привязаны к его вопросам.
+  Чтобы внести изменения, создайте копию-черновик.
+</p>
+
+<form method="post" action="/panel/tests/{{ test.id }}/duplicate" style="margin-bottom: 20px;">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="btn btn-secondary">📄 Дублировать в черновик</button>
+</form>
+
+{% set qmap = {} %}
+{% for q in questions %}
+  {% if qmap.update({q.position: {
+        "text": q.question_text, "a": q.option_a, "b": q.option_b,
+        "c": q.option_c, "d": q.option_d, "correct": q.correct_option,
+        "has_image": "1" if q.has_image else "" }}) %}{% endif %}
+{% endfor %}
+{% set imap = {} %}
+{% for q in questions %}
+  {% if imap.update({q.position: q.image_file_id is not none}) %}{% endif %}
+{% endfor %}
+
+{% for key, label, lo, hi in section_blocks %}
+<section class="section-block">
+  <h2>{{ label }} (вопросы {{ lo }}–{{ hi }})</h2>
+  {% for pos in range(lo, hi + 1) %}
+    {{ question_card(pos, qmap.get(pos), None, imap.get(pos, False), test.id, readonly=True) }}
+  {% endfor %}
+</section>
+{% endfor %}
+{% endblock %}

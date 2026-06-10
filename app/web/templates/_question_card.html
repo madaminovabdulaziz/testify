@@ -1,0 +1,70 @@
+{# Question card macro — editable (editor) and readonly (view) variants.
+
+   pos: int 1..50
+   values: dict {text, a, b, c, d, correct, has_image} (strings; may be {})
+   errors: dict field -> message (editable only)
+   image_attached: bool — an image file_id is stored for this position
+   test_id: int — for the image upload/preview URLs
+#}
+{% macro question_card(pos, values, errors, image_attached, test_id, readonly=False) %}
+{% set v = values or {} %}
+{% set err = errors or {} %}
+<div class="qcard{% if err %} has-errors{% endif %}{% if readonly %} readonly{% endif %}" id="q{{ pos }}">
+  <div class="qcard-head">
+    <span class="qcard-num">Вопрос {{ pos }}</span>
+    {% if not readonly %}<span class="char-counter" data-counter-for="q{{ pos }}_text" data-max="1000"></span>{% endif %}
+  </div>
+
+  {% if readonly %}
+    <p>{{ v.get("text", "") }}</p>
+    {% for letter in ["a", "b", "c", "d"] %}
+      <div class="option-line{% if v.get('correct', '')|lower == letter %} correct{% endif %}">
+        {{ letter|upper }}. {{ v.get(letter, "") }}
+        {%- if v.get('correct', '')|lower == letter %} ✓{% endif %}
+      </div>
+    {% endfor %}
+    {% if image_attached %}
+      <img class="qview-image" src="/panel/tests/{{ test_id }}/questions/{{ pos }}/image" alt="Изображение к вопросу {{ pos }}" loading="lazy">
+    {% endif %}
+  {% else %}
+    <textarea name="q{{ pos }}_text" maxlength="1000"
+              placeholder="Текст вопроса {{ pos }}">{{ v.get("text", "") }}</textarea>
+    {% if err.get("question_text") %}<p class="field-error">{{ err["question_text"] }}</p>{% endif %}
+
+    {% for letter in ["a", "b", "c", "d"] %}
+    <div class="option-row{% if v.get('correct', '')|lower == letter %} correct{% endif %}">
+      <label class="option-radio" title="Правильный ответ — {{ letter|upper }}">
+        <input type="radio" name="q{{ pos }}_correct" value="{{ letter|upper }}"
+               {% if v.get("correct", "")|lower == letter %}checked{% endif %}>
+        {{ letter|upper }}
+      </label>
+      <input type="text" name="q{{ pos }}_{{ letter }}" maxlength="300"
+             value="{{ v.get(letter, "") }}" placeholder="Вариант {{ letter|upper }}">
+    </div>
+    {% if err.get("option_" ~ letter) %}<p class="field-error">{{ err["option_" ~ letter] }}</p>{% endif %}
+    {% endfor %}
+    {% if err.get("correct_option") %}<p class="field-error">{{ err["correct_option"] }}</p>{% endif %}
+    <p class="radio-hint">Отметьте кружком правильный вариант.</p>
+
+    <div class="image-row{% if v.get('has_image') %} enabled{% endif %}" data-pos="{{ pos }}">
+      <label>
+        <input type="checkbox" name="q{{ pos }}_has_image" value="1" class="has-image-toggle"
+               {% if v.get("has_image") %}checked{% endif %}>
+        К вопросу прилагается изображение (таблица, схема)
+      </label>
+      <p class="caption-budget" data-budget-for="{{ pos }}" hidden></p>
+      <div class="image-controls">
+        {% if image_attached %}
+          <img class="image-thumb" src="/panel/tests/{{ test_id }}/questions/{{ pos }}/image" alt="" loading="lazy">
+          <span class="image-status ok">Изображение загружено</span>
+        {% else %}
+          <span class="image-status">Изображение не загружено</span>
+        {% endif %}
+        <input type="file" accept="image/jpeg,image/png,image/webp"
+               class="image-file" data-pos="{{ pos }}">
+      </div>
+    </div>
+    {% if err.get("") %}<p class="field-error">{{ err[""] }}</p>{% endif %}
+  {% endif %}
+</div>
+{% endmacro %}

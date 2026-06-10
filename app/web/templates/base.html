@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>{% block title %}Панель администратора{% endblock %}</title>
+  <link rel="stylesheet" href="/panel/static/panel.css">
+</head>
+<body>
+{% if authenticated %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/panel/">Панель администратора</a>
+    <nav class="topnav">
+      <a href="/panel/"{% if active_nav == "tests" %} class="active"{% endif %}>Тесты</a>
+    </nav>
+    <div class="topbar-right">
+      {% if admin %}<span class="admin-badge">{{ "Владелец" if admin.role == "owner" else "Модератор" }}</span>{% endif %}
+      <form method="post" action="/panel/logout" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="btn btn-ghost btn-sm">Выйти</button>
+      </form>
+    </div>
+  </div>
+</header>
+{% endif %}
+<main class="page{% if not authenticated %} page-center{% endif %}">
+{% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

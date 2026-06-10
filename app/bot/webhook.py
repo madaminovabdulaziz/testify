@@ -16,6 +16,7 @@ from aiohttp import web
 from sqlalchemy import text
 
 from app.core.container import Container
+from app.web.setup import setup_web
 
 logger = structlog.get_logger()
 
@@ -85,10 +86,15 @@ async def healthz_handler(request: web.Request) -> web.Response:
 
 
 def make_app(container: Container, dispatcher: Dispatcher) -> web.Application:
-    """Build the aiohttp app and register the two routes."""
+    """Build the aiohttp app: webhook + healthz + the web admin panel."""
     app = web.Application(client_max_size=_MAX_REQUEST_BYTES)
     app[_KEY_CONTAINER] = container
     app[_KEY_DISPATCHER] = dispatcher
-    app.router.add_post(container.settings.webhook_path, webhook_handler)
+    # Dev (polling) mode has no webhook secret; webhook_handler would crash
+    # dereferencing it, so the route must not exist there. The panel and
+    # /healthz still do — _run_polling now serves this app too.
+    if container.settings.webhook_secret is not None:
+        app.router.add_post(container.settings.webhook_path, webhook_handler)
     app.router.add_get("/healthz", healthz_handler)
+    setup_web(app, container)
     return app

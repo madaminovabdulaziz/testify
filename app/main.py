@@ -166,6 +166,17 @@ async def _run_polling(container: Container) -> None:
     await _start_jobs(container)
     await _check_admin_group(container)
     await setup_bot_commands(container)
+
+    # Serve the aiohttp app (web admin panel + /healthz) in dev too. The
+    # webhook route is absent — make_app skips it when webhook_secret is
+    # None — so polling stays the only update source.
+    app = make_app(container, dispatcher)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, host=_WEBHOOK_BIND_HOST, port=_WEBHOOK_BIND_PORT)
+    await site.start()
+    logger.info("panel_listening", port=_WEBHOOK_BIND_PORT)
+
     logger.info("bot_starting", mode="polling")
     _print_started()
     try:
@@ -174,6 +185,7 @@ async def _run_polling(container: Container) -> None:
         await _stop_jobs(container)
         await wait_for_pending_broadcasts()
         await container.bot.session.close()
+        await runner.cleanup()
         await _dispose_infra(container)
 
 

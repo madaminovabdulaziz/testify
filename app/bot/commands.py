@@ -33,6 +33,7 @@ STUDENT_COMMANDS = [
 
 ADMIN_COMMANDS = [
     BotCommand(command="admin", description="Панель администратора"),
+    BotCommand(command="weblogin", description="Код входа в веб-панель"),
     BotCommand(command="upload_test", description="Загрузить новый тест (Excel)"),
     BotCommand(command="template", description="Получить шаблон Excel"),
     BotCommand(command="cancel", description="Прервать загрузку теста"),

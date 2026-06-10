@@ -26,6 +26,10 @@ dependencies = [
     "structlog>=24.4",
     "sentry-sdk>=2.14",
     "prometheus-client>=0.21",
+    # Web admin panel: server-rendered templates with autoescaping (hand-built
+    # f-string HTML around user-authored question text is an XSS foot-gun).
+    "jinja2>=3.1",
+    "aiohttp-jinja2>=1.6",
 ]
 
 [project.optional-dependencies]
@@ -45,6 +49,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["app*"]
 exclude = ["tests*", "alembic*", "scripts*"]
+
+[tool.setuptools.package-data]
+"app.web" = ["templates/*.html", "static/*"]
 
 # ---------- ruff ----------
 
@@ -96,8 +103,16 @@ warn_unused_configs = true
 warn_redundant_casts = true
 ignore_missing_imports = false
 
+# app.bot handlers are deliberately outside the typecheck gate (ARCHITECTURE
+# SPEC §19 gates services/repositories; app.web joined the gate with the web
+# panel). mypy still follows imports into app.bot — silence those modules so
+# adding app/web to the command line doesn't drag the whole bot layer in.
 [[tool.mypy.overrides]]
-module = ["app.services.*", "app.repositories.*"]
+module = ["app.bot.*", "app.jobs.*", "app.core.*", "app.main"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["app.services.*", "app.repositories.*", "app.web.*"]
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true

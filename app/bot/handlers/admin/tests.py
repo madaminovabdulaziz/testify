@@ -410,12 +410,25 @@ async def on_publish_notify(
     # Hand the broadcast off to a background task so this callback can
     # return promptly. The task opens its own session.
     report_chat_id = callback.message.chat.id if callback.message is not None else None
-    task = asyncio.create_task(_broadcast_published_test(container, test, report_chat_id))
-    _BACKGROUND_TASKS.add(task)
-    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    spawn_publish_broadcast(container, test, report_chat_id)
 
 
 # ---------- broadcast background task ----------
+
+
+def spawn_publish_broadcast(
+    container: Container,
+    test: Test,
+    report_chat_id: int | None = None,
+) -> None:
+    """Fire-and-forget the new-test broadcast (shared with the web panel).
+
+    The task is strongly referenced in ``_BACKGROUND_TASKS`` so a graceful
+    shutdown can drain it via :func:`wait_for_pending_broadcasts`.
+    """
+    task = asyncio.create_task(_broadcast_published_test(container, test, report_chat_id))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
 
 
 async def _broadcast_published_test(

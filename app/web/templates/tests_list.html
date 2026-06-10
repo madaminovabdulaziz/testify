@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Тесты — Панель администратора{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Тесты</h1>
+  <form method="post" action="/panel/tests/new">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn-primary">➕ Новый тест</button>
+  </form>
+</div>
+
+<div class="table-card">
+  {% if entries %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Название</th>
+        <th>Статус</th>
+        <th>Вопросы</th>
+        <th>Попытки</th>
+        <th>Опубликован</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr class="row-link" data-href="/panel/tests/{{ e.id }}">
+        <td>#{{ e.id }}</td>
+        <td><a href="/panel/tests/{{ e.id }}">{{ e.title }}</a></td>
+        <td>
+          {% if e.status == "draft" %}<span class="badge badge-draft">Черновик</span>
+          {% elif e.status == "active" %}<span class="badge badge-active">Активный</span>
+          {% else %}<span class="badge badge-archived">В архиве</span>{% endif %}
+        </td>
+        <td>{{ e.question_count }}/50</td>
+        <td>{{ e.attempt_count }}</td>
+        <td>{{ e.published_at.strftime("%d.%m.%Y") if e.published_at else "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <p>Тестов пока нет.</p>
+    <p>Нажмите «➕ Новый тест», чтобы создать первый.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll("tr.row-link").forEach(function (row) {
+  row.addEventListener("click", function (e) {
+    if (e.target.closest("a")) return;
+    window.location = row.dataset.href;
+  });
+});
+</script>
+{% endblock %}

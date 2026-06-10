@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     broadcast_concurrency: int = 20
     broadcast_messages_per_second: int = 25
 
+    # ---------- Web panel ----------
+    # All optional with defaults — existing deploys need no new env vars.
+    # ``panel_base_url`` overrides the URL shown by /weblogin; when unset it
+    # is derived from ``webhook_url`` (scheme + host) or localhost in dev.
+    panel_base_url: HttpUrl | None = None
+    web_session_ttl_days: int = 30
+    web_login_code_ttl_seconds: int = 300
+    web_login_max_attempts: int = 10
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -28,8 +28,8 @@ lint:  ## ruff check + ruff format --check
 	ruff check .
 	ruff format --check .
 
-typecheck:  ## mypy on services + repositories
-	mypy app/services app/repositories
+typecheck:  ## mypy on services + repositories + web panel
+	mypy app/services app/repositories app/web
 
 migrate:  ## Create a new Alembic revision (usage: make migrate name="add_xyz")
 	@if [ -z "$(name)" ]; then \
