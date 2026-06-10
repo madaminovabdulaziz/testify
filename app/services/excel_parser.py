@@ -18,6 +18,32 @@ from typing import Final
 
 from openpyxl import load_workbook
 
+from app.services.question_validation import (
+    EXPECTED_ROW_COUNT,
+    MAX_IMAGE_CAPTION_BLOCK_LEN,
+    MAX_OPTION_TEXT_LEN,
+    MAX_QUESTION_TEXT_LEN,
+    SECTION_RANGES,
+    VALID_OPTIONS,
+    VALID_SECTIONS,
+    validate_question_fields,
+)
+
+__all__ = [
+    "EXPECTED_ROW_COUNT",
+    "MAX_IMAGE_CAPTION_BLOCK_LEN",
+    "MAX_OPTION_TEXT_LEN",
+    "MAX_QUESTION_TEXT_LEN",
+    "SECTION_RANGES",
+    "SHEET_NAME",
+    "VALID_OPTIONS",
+    "VALID_SECTIONS",
+    "ExcelParser",
+    "ParseError",
+    "ParsedQuestion",
+    "ParsedTest",
+]
+
 # ---------- DTOs ----------
 
 
@@ -57,34 +83,13 @@ class ParsedTest:
 
 
 # ---------- Validation constants ----------
+#
+# The semantic limits (sections, lengths, caption budget) live in
+# app/services/question_validation.py — shared with the web panel editor —
+# and are re-exported above for backward compatibility. Only the
+# Excel-file-specific constants remain here.
 
 SHEET_NAME: Final[str] = "Questions"
-EXPECTED_ROW_COUNT: Final[int] = 50
-VALID_SECTIONS: Final[tuple[str, ...]] = ("rus_tili", "pedagogik", "kasbiy")
-VALID_OPTIONS: Final[tuple[str, ...]] = ("A", "B", "C", "D")
-
-# Section-to-(min_pos, max_pos, expected_count). Mirrors DATABASE_SPEC §5.5
-# CHECK constraint ``ck_questions__section_position_consistent``.
-SECTION_RANGES: Final[dict[str, tuple[int, int, int]]] = {
-    "rus_tili": (1, 35, 35),
-    "pedagogik": (36, 45, 10),
-    "kasbiy": (46, 50, 5),
-}
-
-MAX_QUESTION_TEXT_LEN: Final[int] = 1000
-MAX_OPTION_TEXT_LEN: Final[int] = 300
-
-# Telegram caps a photo *caption* at 1024 chars (vs 4096 for a text message).
-# An image question renders as a photo whose caption holds the dynamic header
-# line + the question text + the four options. We cap the static part (text +
-# options + formatting) so the assembled caption can never overflow at send
-# time; ~120 chars of headroom are reserved for the timer/position/section
-# header. See app/bot/views/test_screen.py for the matching layout.
-MAX_IMAGE_CAPTION_BLOCK_LEN: Final[int] = 850
-
-# Overhead of the option formatting in the caption body:
-#   "{q}\n\nA. {a}\nB. {b}\nC. {c}\nD. {d}"  →  "\n\n" + 4×"X. " + 3×"\n".
-_CAPTION_BODY_OVERHEAD: Final[int] = 2 + (4 * 3) + 3
 
 # Recognised ``has_image`` tokens (case-insensitive, after stripping). Anything
 # else is a parse error so a typo can't silently disable an illustration.
@@ -178,19 +183,9 @@ class ExcelParser:
                 seen_positions.add(question.position)
 
             section_counts[question.section] += 1
-
-            # Section ↔ position-range cross-check.
-            lo, hi, _ = SECTION_RANGES[question.section]
-            if not (lo <= question.position <= hi):
-                errors.append(
-                    ParseError(
-                        line=idx,
-                        message=(
-                            f"Вопросы раздела «{question.section}» должны быть "
-                            f"на позициях {lo}–{hi}."
-                        ),
-                    )
-                )
+            # Section ↔ position-range consistency is checked per-row inside
+            # _validate_row (via validate_question_fields), so rows that fail
+            # it never reach this point.
 
         # Per-section counts (skip if file-level row count already failed —
         # the counts will obviously also be wrong).
@@ -217,33 +212,26 @@ class ExcelParser:
 
 
 def _validate_row(cells: tuple[object, ...], *, line: int) -> list[ParseError]:
-    """Validate one row in isolation. Returns an empty list if all cells pass."""
+    """Validate one row in isolation. Returns an empty list if all cells pass.
+
+    Excel-specific concerns (cell presence, position typing, ``has_image``
+    token parsing) are handled here; the semantic field rules are delegated
+    to :mod:`app.services.question_validation` so the web panel shares them.
+    """
     section, position, qtext, oa, ob, oc, od, correct, has_image_raw = cells
     required = cells[:8]
     errors: list[ParseError] = []
 
-    # 1. Required cells present + correct primitive types. ``has_image`` is
-    #    optional and validated separately below, so it's excluded here.
+    # 1. Required cells present. ``has_image`` is optional and validated
+    #    separately below, so it's excluded here.
     for label, value in zip(_REQUIRED_COLUMN_LABELS, required, strict=True):
         if value is None or (isinstance(value, str) and not value.strip()):
             errors.append(ParseError(line=line, message=f"Колонка «{label}» пустая."))
     if errors:
         return errors
 
-    # 2. Section enum.
-    section_str = str(section).strip()
-    if section_str not in VALID_SECTIONS:
-        errors.append(
-            ParseError(
-                line=line,
-                message=(
-                    f"Значение в колонке «section» должно быть одним из "
-                    f"{', '.join(VALID_SECTIONS)}."
-                ),
-            )
-        )
-
-    # 3. Position is an int in [1, 50].
+    # 2. Position is an int (Excel-specific typing concern; range checks are
+    #    semantic and delegated below).
     if not isinstance(position, int) or isinstance(position, bool):
         errors.append(
             ParseError(
@@ -251,72 +239,26 @@ def _validate_row(cells: tuple[object, ...], *, line: int) -> list[ParseError]:
                 message="Колонка «position» должна быть целым числом.",
             )
         )
-    elif not 1 <= position <= EXPECTED_ROW_COUNT:
-        errors.append(
-            ParseError(
-                line=line,
-                message=f"Позиция {position} вне диапазона 1–{EXPECTED_ROW_COUNT}.",
-            )
-        )
+        return errors
 
-    # 4. Lengths on the text columns.
-    qtext_str = str(qtext)
-    if len(qtext_str) > MAX_QUESTION_TEXT_LEN:
-        errors.append(
-            ParseError(
-                line=line,
-                message=(f"Текст вопроса длиннее {MAX_QUESTION_TEXT_LEN} символов."),
-            )
-        )
-    for opt_label, opt_value in zip(
-        ("option_a", "option_b", "option_c", "option_d"),
-        (oa, ob, oc, od),
-        strict=True,
-    ):
-        if len(str(opt_value)) > MAX_OPTION_TEXT_LEN:
-            errors.append(
-                ParseError(
-                    line=line,
-                    message=(f"«{opt_label}» длиннее {MAX_OPTION_TEXT_LEN} символов."),
-                )
-            )
-
-    # 5. correct_option must be one of A/B/C/D (case-insensitive on input).
-    correct_str = str(correct).strip().upper()
-    if correct_str not in VALID_OPTIONS:
-        errors.append(
-            ParseError(
-                line=line,
-                message=("Значение в колонке «correct_option» должно быть A, B, C или D."),
-            )
-        )
-
-    # 6. has_image (optional): must be a recognised token, and an image
-    #    question's text + options must fit inside a Telegram photo caption.
+    # 3. has_image token must be recognised (Excel-specific spelling concern).
     has_image, has_image_err = _parse_has_image(has_image_raw)
     if has_image_err is not None:
         errors.append(ParseError(line=line, message=has_image_err))
-    elif has_image:
-        block_len = (
-            len(qtext_str.strip())
-            + len(str(oa).strip())
-            + len(str(ob).strip())
-            + len(str(oc).strip())
-            + len(str(od).strip())
-            + _CAPTION_BODY_OVERHEAD
-        )
-        if block_len > MAX_IMAGE_CAPTION_BLOCK_LEN:
-            errors.append(
-                ParseError(
-                    line=line,
-                    message=(
-                        "Вопрос с изображением: текст вопроса и варианты вместе "
-                        f"не должны превышать {MAX_IMAGE_CAPTION_BLOCK_LEN} символов "
-                        "(ограничение Telegram для подписи к фото)."
-                    ),
-                )
-            )
 
+    # 4. Semantic field rules — shared with the web panel.
+    field_errors = validate_question_fields(
+        section=str(section).strip(),
+        position=position,
+        question_text=str(qtext).strip(),
+        option_a=str(oa).strip(),
+        option_b=str(ob).strip(),
+        option_c=str(oc).strip(),
+        option_d=str(od).strip(),
+        correct_option=str(correct).strip().upper(),
+        has_image=has_image,
+    )
+    errors.extend(ParseError(line=line, message=fe.message) for fe in field_errors)
     return errors
 
 
