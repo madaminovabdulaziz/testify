@@ -126,7 +126,7 @@ class AttemptRepository(BaseRepository):
             .values(current_position=position)
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_finished(
         self,
@@ -149,7 +149,7 @@ class AttemptRepository(BaseRepository):
             )
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_warning_sent(self, attempt_id: int, slot: WarningSlot) -> int:
         """Atomically claim a warning slot: stamp ``warning_<slot>_sent_at`` iff
@@ -175,7 +175,7 @@ class AttemptRepository(BaseRepository):
             .values({column.key: now_utc()})
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def list_in_progress(self) -> list[Attempt]:
         """All ``in_progress`` attempts — used to re-schedule jobs at startup."""

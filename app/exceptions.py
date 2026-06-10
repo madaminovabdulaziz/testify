@@ -79,6 +79,16 @@ class NoActiveTestError(UserError):
     user_message = "Сейчас нет доступных тестов."
 
 
+class DraftRequiredError(UserError):
+    """A web-panel edit targeted a test that is no longer a draft.
+
+    Published tests are immutable (answers.is_correct is denormalized at
+    answer time); the panel offers «Дублировать в черновик» instead.
+    """
+
+    user_message = "Этот тест уже опубликован — редактировать можно только черновики."
+
+
 class PublishConflictError(UserError):
     """Two admins published at the same moment; the DB's one-active-test
     unique index rejected the second activation (CODE_REVIEW C8).

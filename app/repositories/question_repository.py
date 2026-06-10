@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.models.question import Question
 from app.repositories.base import BaseRepository
@@ -23,7 +23,10 @@ class QuestionDraft:
     rows; the test-create service hands them to the repo unchanged.
 
     ``has_image`` carries the Excel ``has_image`` flag through to the row; the
-    image id itself is filled in later, in-bot, by the authoring flow.
+    image id itself is filled in later — in-bot by the authoring flow, or via
+    the web panel. ``image_file_id`` / ``image_file_unique_id`` are set only
+    when an existing image is carried over (draft re-save, test duplication);
+    fresh drafts leave them None.
     """
 
     section: str
@@ -35,6 +38,8 @@ class QuestionDraft:
     option_d: str
     correct_option: str
     has_image: bool = False
+    image_file_id: str | None = None
+    image_file_unique_id: str | None = None
 
 
 class QuestionRepository(BaseRepository):
@@ -54,6 +59,8 @@ class QuestionRepository(BaseRepository):
                 option_d=d.option_d,
                 correct_option=d.correct_option,
                 has_image=d.has_image,
+                image_file_id=d.image_file_id if d.has_image else None,
+                image_file_unique_id=d.image_file_unique_id if d.has_image else None,
             )
             for d in drafts
         ]
@@ -102,6 +109,26 @@ class QuestionRepository(BaseRepository):
         )
         return int((await self._session.execute(stmt)).scalar_one())
 
+    async def delete_by_test(self, test_id: int) -> int:
+        """Delete every question of a test. Returns the rowcount.
+
+        Used by the web panel's draft save (wholesale replace). The caller
+        must have verified the test is still a ``draft``.
+        """
+        result = await self._session.execute(delete(Question).where(Question.test_id == test_id))
+        return self._rowcount(result)
+
+    async def map_images_by_position(self, test_id: int) -> dict[int, tuple[str, str]]:
+        """``position -> (image_file_id, image_file_unique_id)`` for attached images."""
+        stmt = select(
+            Question.position, Question.image_file_id, Question.image_file_unique_id
+        ).where(
+            Question.test_id == test_id,
+            Question.image_file_id.is_not(None),
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return {pos: (fid, fuid) for pos, fid, fuid in rows}
+
     async def set_image(
         self,
         test_id: int,
@@ -126,4 +153,4 @@ class QuestionRepository(BaseRepository):
             .values(image_file_id=file_id, image_file_unique_id=file_unique_id)
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)

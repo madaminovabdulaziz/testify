@@ -75,7 +75,7 @@ class ReceiptRepository(BaseRepository):
             )
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_rejected(
         self,
@@ -98,7 +98,7 @@ class ReceiptRepository(BaseRepository):
             )
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def count_pending_for_user(self, user_id: int) -> int:
         """Count this user's ``pending`` receipts — used to enforce the 3-per-user cap."""

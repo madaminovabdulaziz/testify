@@ -95,7 +95,7 @@ class TestRepository(BaseRepository):
             .values(status="active", published_at=now_utc())
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_archived(self, test_id: int) -> int:
         """Move an ``active`` test to ``archived`` and stamp ``archived_at``. Returns rowcount."""
@@ -105,13 +105,23 @@ class TestRepository(BaseRepository):
             .values(status="archived", archived_at=now_utc())
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
+
+    async def update_title(self, test_id: int, title: str) -> int:
+        """Rename a ``draft`` test. Returns rowcount (0 when not a draft).
+
+        The status guard makes renaming a published test impossible by
+        construction — published titles are part of the historical record.
+        """
+        stmt = update(Test).where(Test.id == test_id, Test.status == "draft").values(title=title)
+        result = await self._session.execute(stmt)
+        return self._rowcount(result)
 
     async def delete_draft(self, test_id: int) -> int:
         """Hard-delete a ``draft`` test (questions cascade). Returns rowcount."""
         stmt = delete(Test).where(Test.id == test_id, Test.status == "draft")
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def count_by_status(self) -> dict[str, int]:
         """``{status: count}`` across all tests — feeds /stats."""

@@ -79,7 +79,7 @@ class UserRepository(BaseRepository):
             )
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_rejected(self, user_id: int) -> int:
         """Return the user to ``rejected`` so they can resubmit. Returns rowcount.
@@ -94,7 +94,7 @@ class UserRepository(BaseRepository):
             .values(status="rejected")
         )
         result = await self._session.execute(stmt)
-        return result.rowcount
+        return self._rowcount(result)
 
     async def mark_bot_blocked(self, user_id: int) -> None:
         """Set the ``bot_blocked`` flag after a ``TelegramForbiddenError``."""
