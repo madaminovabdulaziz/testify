@@ -52,8 +52,10 @@ async def cmd_weblogin(
     await message.answer(
         "🔑 Код для входа в веб-панель:\n\n"
         f"<code>{code}</code>\n\n"
-        f"Откройте {panel_base_url(settings)} и введите код.\n"
-        f"Код одноразовый и действует {minutes} минут."
+        "🌐 Панель:\n"
+        f"{panel_base_url(settings)}\n\n"
+        f"Код одноразовый и действует {minutes} минут.\n"
+        "Нажмите на код, чтобы скопировать."
     )
 
 
