@@ -54,6 +54,7 @@ BTN_ADMIN_ATTEMPT: Final[str] = "🔎 Детали попытки"
 BTN_ADMIN_BAN: Final[str] = "🚫 Забанить"
 BTN_ADMIN_UNBAN: Final[str] = "✅ Разбанить"
 BTN_ADMIN_TEMPLATE: Final[str] = "📤 Шаблон Excel"
+BTN_ADMIN_BROADCAST: Final[str] = "📣 Рассылка"
 BTN_ADMIN_CLOSE: Final[str] = "🔙 Закрыть админ-панель"
 BTN_ADMIN_CANCEL: Final[str] = "↩️ Отменить"
 
