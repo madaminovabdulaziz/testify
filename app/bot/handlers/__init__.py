@@ -1,6 +1,7 @@
 """Top-level handler routers. The dispatcher includes them in order."""
 
 from app.bot.handlers import common, onboarding, payment, test_taking
+from app.bot.handlers.admin import broadcast as admin_broadcast
 from app.bot.handlers.admin import operations as admin_operations
 from app.bot.handlers.admin import panel as admin_panel
 from app.bot.handlers.admin import receipts as admin_receipts
@@ -9,6 +10,7 @@ from app.bot.handlers.admin import tests as admin_tests
 from app.bot.handlers.admin import weblogin as admin_weblogin
 
 __all__ = [
+    "admin_broadcast",
     "admin_operations",
     "admin_panel",
     "admin_receipts",

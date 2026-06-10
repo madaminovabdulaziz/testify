@@ -10,6 +10,7 @@ from redis.asyncio import Redis
 
 from app.bot.filters.admin_only import AdminOnly
 from app.bot.handlers import (
+    admin_broadcast,
     admin_operations,
     admin_panel,
     admin_receipts,
@@ -83,6 +84,7 @@ def build_dispatcher(redis: Redis, container: Container) -> Dispatcher:
     dispatcher.include_router(admin_operations.router)
     dispatcher.include_router(admin_settings.router)
     dispatcher.include_router(admin_weblogin.router)
+    dispatcher.include_router(admin_broadcast.router)
     # admin_panel matches on reply-keyboard button text; included after
     # the slash-command admin routers so /set, /find etc. still win when
     # the admin types a command, but before the student / fallback

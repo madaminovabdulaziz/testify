@@ -9,6 +9,7 @@ from app.models.admin import Admin
 from app.models.answer import Answer
 from app.models.attempt import Attempt
 from app.models.base import Base
+from app.models.broadcast import Broadcast
 from app.models.question import Question
 from app.models.receipt import PaymentReceipt
 from app.models.setting import Setting
@@ -20,6 +21,7 @@ __all__ = [
     "Answer",
     "Attempt",
     "Base",
+    "Broadcast",
     "PaymentReceipt",
     "Question",
     "Setting",

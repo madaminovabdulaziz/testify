@@ -31,6 +31,7 @@ from aiogram.types import KeyboardButton, ReplyKeyboardMarkup
 from app.core.i18n import (
     BTN_ADMIN_ATTEMPT,
     BTN_ADMIN_BAN,
+    BTN_ADMIN_BROADCAST,
     BTN_ADMIN_CANCEL,
     BTN_ADMIN_CLOSE,
     BTN_ADMIN_FIND,
@@ -63,7 +64,10 @@ def admin_panel_keyboard() -> ReplyKeyboardMarkup:
                 KeyboardButton(text=BTN_ADMIN_BAN),
                 KeyboardButton(text=BTN_ADMIN_UNBAN),
             ],
-            [KeyboardButton(text=BTN_ADMIN_TEMPLATE)],
+            [
+                KeyboardButton(text=BTN_ADMIN_BROADCAST),
+                KeyboardButton(text=BTN_ADMIN_TEMPLATE),
+            ],
             [KeyboardButton(text=BTN_ADMIN_CLOSE)],
         ],
         resize_keyboard=True,

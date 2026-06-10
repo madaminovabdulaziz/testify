@@ -164,6 +164,40 @@ class UserRepository(BaseRepository):
         result = await self._session.execute(stmt)
         return [(row.id, row.telegram_id) for row in result]
 
+    async def list_approved_after(
+        self,
+        cursor_user_id: int,
+        *,
+        limit: int = 30,
+    ) -> list[tuple[int, int]]:
+        """Next batch of broadcast recipients after the resume cursor.
+
+        ``(id, telegram_id)`` of approved, non-blocked users with
+        ``id > cursor_user_id``, ordered by ``id`` — the ordering is what
+        makes ``broadcasts.last_user_id`` a correct resume cursor.
+        """
+        stmt = (
+            select(User.id, User.telegram_id)
+            .where(
+                User.status == "approved",
+                User.bot_blocked.is_(False),
+                User.id > cursor_user_id,
+            )
+            .order_by(User.id)
+            .limit(limit)
+        )
+        result = await self._session.execute(stmt)
+        return [(row.id, row.telegram_id) for row in result]
+
+    async def count_approved_for_broadcast(self) -> int:
+        """How many users a broadcast would reach right now."""
+        stmt = (
+            select(func.count())
+            .select_from(User)
+            .where(User.status == "approved", User.bot_blocked.is_(False))
+        )
+        return int((await self._session.execute(stmt)).scalar_one())
+
     async def count_by_status(self) -> dict[str, int]:
         """``{status: row_count}`` across the table — feeds the /stats command."""
         stmt = select(User.status, func.count()).group_by(User.status)

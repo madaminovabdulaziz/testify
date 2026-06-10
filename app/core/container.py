@@ -20,6 +20,7 @@ from app.core.config import Settings
 from app.repositories.admin_repository import AdminRepository
 from app.repositories.answer_repository import AnswerRepository
 from app.repositories.attempt_repository import AttemptRepository
+from app.repositories.broadcast_repository import BroadcastRepository
 from app.repositories.question_repository import QuestionRepository
 from app.repositories.receipt_repository import ReceiptRepository
 from app.repositories.settings_repository import SettingsRepository
@@ -27,6 +28,7 @@ from app.repositories.test_repository import TestRepository
 from app.repositories.user_repository import UserRepository
 from app.services.admin_service import AdminService
 from app.services.attempt_service import AttemptService
+from app.services.broadcast_service import BroadcastService
 from app.services.excel_parser import ExcelParser
 from app.services.image_hasher import ImageHasher
 from app.services.notification_service import NotificationService
@@ -53,6 +55,7 @@ class Services:
     ref_code: ReferenceCodeService
     admin: AdminService
     stats: StatsService
+    broadcast: BroadcastService
 
 
 @dataclass(frozen=True)
@@ -117,4 +120,5 @@ class Container:
             ref_code=ReferenceCodeService(user_repo),
             admin=AdminService(AdminRepository(session)),
             stats=StatsService(user_service, receipt_service, test_service, attempt_service),
+            broadcast=BroadcastService(BroadcastRepository(session), user_repo),
         )

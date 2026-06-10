@@ -45,6 +45,7 @@ from app.core.redis import create_redis_client
 from app.core.scheduler import build_scheduler
 from app.core.sentry import init_sentry
 from app.jobs._runtime import set_runtime_container
+from app.jobs.broadcast_runner import resume_unfinished_broadcasts, wait_for_running_broadcasts
 from app.jobs.registry import register_recurring_jobs
 from app.jobs.startup_reconciliation import reconcile_attempts
 
@@ -91,6 +92,9 @@ async def _start_jobs(container: Container) -> None:
     # idempotent so the order is informative not load-bearing.
     await reconcile_attempts(container)
     register_recurring_jobs(container.scheduler)
+    # Unfinished admin announcements (bot restarted mid-broadcast) resume
+    # from their last committed cursor.
+    await resume_unfinished_broadcasts(container)
 
 
 async def _stop_jobs(container: Container) -> None:
@@ -184,6 +188,7 @@ async def _run_polling(container: Container) -> None:
     finally:
         await _stop_jobs(container)
         await wait_for_pending_broadcasts()
+        await wait_for_running_broadcasts()
         await container.bot.session.close()
         await runner.cleanup()
         await _dispose_infra(container)
@@ -232,6 +237,7 @@ async def _run_webhook(container: Container) -> None:
     finally:
         await _stop_jobs(container)
         await wait_for_pending_broadcasts()
+        await wait_for_running_broadcasts()
         await container.bot.delete_webhook(drop_pending_updates=False)
         await container.bot.session.close()
         await runner.cleanup()

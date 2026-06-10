@@ -156,6 +156,53 @@ class NotificationService:
         )
         return summary
 
+    async def copy_broadcast_message(
+        self,
+        user_id: int,
+        telegram_id: int,
+        *,
+        from_chat_id: int,
+        message_id: int,
+    ) -> str:
+        """Copy one admin-composed message to a student via ``copyMessage``.
+
+        ``copyMessage`` replays the source message verbatim — text with its
+        formatting entities, photo/video/GIF with caption — without the
+        "forwarded from" header, so an announcement looks like the bot wrote
+        it. Returns ``"sent"`` / ``"blocked"`` / ``"error"``; a blocked user
+        is flagged ``bot_blocked`` immediately (the caller's session must be
+        open). 429s are retried with Telegram's own hint, like the test
+        broadcast (CODE_REVIEW H15).
+        """
+        for attempt in range(1, _MAX_SEND_ATTEMPTS + 1):
+            try:
+                await self._bot.copy_message(
+                    chat_id=telegram_id,
+                    from_chat_id=from_chat_id,
+                    message_id=message_id,
+                )
+                return "sent"
+            except TelegramForbiddenError:
+                await self._users.mark_bot_blocked(user_id)
+                return "blocked"
+            except TelegramRetryAfter as exc:
+                if attempt == _MAX_SEND_ATTEMPTS:
+                    logger.warning(
+                        "announcement_retry_exhausted",
+                        user_id=user_id,
+                        telegram_id=telegram_id,
+                    )
+                    return "error"
+                await asyncio.sleep(min(exc.retry_after, _MAX_RETRY_SLEEP_SECONDS))
+            except TelegramAPIError:
+                logger.exception(
+                    "announcement_copy_failed",
+                    user_id=user_id,
+                    telegram_id=telegram_id,
+                )
+                return "error"
+        return "error"  # pragma: no cover — loop always returns
+
     # ---------- admin group ----------
 
     async def send_to_admin_group(

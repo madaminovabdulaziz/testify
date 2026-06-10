@@ -35,9 +35,9 @@ _EXPECTED_ACTION_BUTTONS = {
 def test_admin_panel_layout_is_three_by_three_plus_template_and_close_rows() -> None:
     kb = admin_panel_keyboard()
     rows = kb.keyboard
-    # 3×3 action grid, a full-width template row, then the close row.
+    # 3×3 action grid, the broadcast+template row, then the close row.
     assert len(rows) == 5
-    assert [len(row) for row in rows] == [3, 3, 3, 1, 1]
+    assert [len(row) for row in rows] == [3, 3, 3, 2, 1]
 
 
 def test_admin_panel_includes_every_action_button_plus_close() -> None:

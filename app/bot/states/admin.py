@@ -19,6 +19,13 @@ class AdminRejectReasonState(StatesGroup):
     waiting_for_reason = State()
 
 
+class AdminBroadcastState(StatesGroup):
+    """Admin announcement flow: compose in Telegram → preview → confirm."""
+
+    waiting_for_message = State()
+    confirming = State()
+
+
 class AdminPanelState(StatesGroup):
     """Admin tapped a multi-step button in the /admin panel.
 
