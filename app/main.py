@@ -34,6 +34,7 @@ import structlog
 from aiohttp import web
 
 from app.bot.bot import build_bot, build_dispatcher
+from app.bot.commands import setup_bot_commands
 from app.bot.handlers.admin.tests import wait_for_pending_broadcasts
 from app.bot.webhook import make_app
 from app.core.config import Settings
@@ -164,6 +165,7 @@ async def _run_polling(container: Container) -> None:
     await container.bot.delete_webhook(drop_pending_updates=False)
     await _start_jobs(container)
     await _check_admin_group(container)
+    await setup_bot_commands(container)
     logger.info("bot_starting", mode="polling")
     _print_started()
     try:
@@ -192,6 +194,7 @@ async def _run_webhook(container: Container) -> None:
 
     # 1. Scheduler + reconciliation first.
     await _start_jobs(container)
+    await setup_bot_commands(container)
 
     # 2. Bring the aiohttp site up so /healthz answers and the route exists.
     app = make_app(container, dispatcher)
