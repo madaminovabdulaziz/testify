@@ -166,6 +166,31 @@ class ReceiptRepository(BaseRepository):
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
+    async def list_pending_unnotified(
+        self,
+        cutoff: datetime,
+        limit: int = 20,
+    ) -> list[PaymentReceipt]:
+        """Pending receipts whose admin-group post never landed.
+
+        ``admin_notification_message_id IS NULL`` means the original
+        ``send_photo`` to the admin group failed — without a retry the
+        receipt is invisible to admins and unreviewable from Telegram.
+        ``cutoff`` keeps just-submitted receipts (whose notification is
+        still in flight) out of the sweep.
+        """
+        stmt = (
+            select(PaymentReceipt)
+            .where(
+                PaymentReceipt.status == "pending",
+                PaymentReceipt.admin_notification_message_id.is_(None),
+                PaymentReceipt.created_at < cutoff,
+            )
+            .order_by(PaymentReceipt.created_at.asc())
+            .limit(limit)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def count_by_status(self) -> dict[str, int]:
         """``{status: count}`` across all receipts — feeds /stats."""
         stmt = select(PaymentReceipt.status, func.count()).group_by(PaymentReceipt.status)

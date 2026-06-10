@@ -12,15 +12,28 @@ where two workers race the same row.
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 
 import structlog
+from aiogram.exceptions import TelegramAPIError
 
+from app.bot.views.admin_receipt import render_admin_receipt_notification
 from app.jobs._runtime import get_runtime_container
 from app.utils.datetime import now_utc
 from app.utils.text import html_escape
 
+if TYPE_CHECKING:
+    # Runtime import would be circular: container → attempt_service → jobs.
+    from app.core.container import Container
+
 logger = structlog.get_logger()
+
+# How long after submission a receipt with no admin-group message id is
+# considered "the original post failed" rather than "still in flight".
+_UNNOTIFIED_GRACE_MINUTES = 5
+
+_REPOST_NOTE = "⚠️ Повторная отправка — исходное уведомление не дошло до группы."
 
 # (threshold_hours, marker_label). The label is what gets baked into the
 # Redis key, so don't rename it once the bot is in prod or you'll
@@ -58,6 +71,13 @@ async def pending_receipt_reminder_job() -> None:
     env = container.settings.env
     now = now_utc()
 
+    # Phase 0 — re-post receipts whose original admin-group notification
+    # failed to send (admin_notification_message_id IS NULL). Without this,
+    # such a receipt is unreviewable: the nag below only carries the id,
+    # no photo and no ✅/❌ buttons. Deduped by the DB write itself — once
+    # the message id is stored, the receipt drops out of the query.
+    await _repost_unnotified_receipts(container, now)
+
     # Phase 1 — collect under the DB session, then release it.
     due: list[tuple[int, str, int]] = []  # (receipt_id, label, age_hours)
     async with container.session_factory() as session:
@@ -93,6 +113,53 @@ async def pending_receipt_reminder_job() -> None:
             )
 
     logger.info("pending_receipt_reminder_done", sent=total_sent)
+
+
+async def _repost_unnotified_receipts(container: Container, now: datetime) -> None:
+    """Retry the admin-group approval card for receipts that never got one.
+
+    Sends the same photo + caption + ✅/❌ buttons as the original
+    submission path (payment.on_receipt_photo), then stores the resulting
+    message id so the approve/reject edits work and the receipt stops
+    being selected. A failed send is retried on the next hourly sweep.
+    """
+    cutoff = now - timedelta(minutes=_UNNOTIFIED_GRACE_MINUTES)
+
+    async with container.session_factory() as session:
+        services = container.services(session)
+        receipts = await services.receipt.list_pending_unnotified(cutoff)
+        if not receipts:
+            return
+        cards = []
+        for receipt in receipts:
+            user = await services.user.get_user(receipt.user_id)
+            if user is None:  # pragma: no cover — FK guarantees the row
+                continue
+            rendered = render_admin_receipt_notification(user, receipt, warnings=[_REPOST_NOTE])
+            cards.append((receipt.id, receipt.telegram_file_id, rendered))
+        notification = services.notification
+
+    posted: list[tuple[int, int]] = []  # (receipt_id, message_id)
+    for receipt_id, file_id, rendered in cards:
+        try:
+            message = await notification.send_to_admin_group(
+                rendered.text,
+                photo_file_id=file_id,
+                reply_markup=rendered.reply_markup,
+            )
+        except TelegramAPIError:
+            logger.exception("receipt_repost_failed", receipt_id=receipt_id)
+            continue
+        posted.append((receipt_id, message.message_id))
+        logger.info("receipt_reposted_to_admin_group", receipt_id=receipt_id)
+
+    if not posted:
+        return
+    async with container.session_factory() as session:
+        services = container.services(session)
+        for receipt_id, message_id in posted:
+            await services.receipt.attach_admin_notification_message(receipt_id, message_id)
+        await session.commit()
 
 
 def _format_reminder(receipt_id: int, age_hours: int) -> str:

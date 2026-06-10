@@ -290,6 +290,20 @@ class ReceiptService:
         """Pending receipts whose ``created_at < cutoff`` — feeds the reminder sweep."""
         return await self._receipts.list_pending_older_than(cutoff, limit=limit)
 
+    async def list_pending_unnotified(
+        self,
+        cutoff: datetime,
+        *,
+        limit: int = 20,
+    ) -> list[PaymentReceipt]:
+        """Pending receipts that were never posted to the admin group.
+
+        ``admin_notification_message_id`` is NULL when the original
+        admin-group post failed; the reminder sweep re-posts these so
+        they stay reviewable from Telegram.
+        """
+        return await self._receipts.list_pending_unnotified(cutoff, limit=limit)
+
     async def count_by_status(self) -> dict[str, int]:
         """``{status: count}`` across all receipts — feeds /stats."""
         return await self._receipts.count_by_status()

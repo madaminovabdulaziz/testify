@@ -26,6 +26,7 @@ def _session_factory_mock(session: MagicMock) -> MagicMock:
 def _build_container(
     *,
     pending_by_threshold: dict[int, list[SimpleNamespace]] | None = None,
+    pending_unnotified: list[SimpleNamespace] | None = None,
     redis_set_returns: bool = True,
     notification_raises: Exception | None = None,
 ) -> tuple[MagicMock, MagicMock, MagicMock]:
@@ -43,10 +44,19 @@ def _build_container(
         return pending_by_threshold.get(age_hours, [])
 
     services.receipt.list_pending_older_than = AsyncMock(side_effect=fake_list)
+    services.receipt.list_pending_unnotified = AsyncMock(return_value=pending_unnotified or [])
+    services.receipt.attach_admin_notification_message = AsyncMock()
+    services.user.get_user = AsyncMock(
+        return_value=SimpleNamespace(
+            full_name="Тест", phone="+998", username=None, reference_code="ABC123"
+        )
+    )
     if notification_raises is not None:
         services.notification.send_to_admin_group = AsyncMock(side_effect=notification_raises)
     else:
-        services.notification.send_to_admin_group = AsyncMock()
+        services.notification.send_to_admin_group = AsyncMock(
+            return_value=SimpleNamespace(message_id=777)
+        )
 
     redis = MagicMock()
     redis.set = AsyncMock(return_value=redis_set_returns)
@@ -108,6 +118,53 @@ async def test_reminder_releases_marker_when_send_fails() -> None:
     redis.delete.assert_awaited()
     delete_args = redis.delete.await_args.args
     assert "receipt_reminder:1:24h" in delete_args[0]
+
+
+def _unnotified_receipt(*, rid: int, age_hours: int) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=rid,
+        user_id=5,
+        telegram_file_id=f"file-{rid}",
+        created_at=datetime.now(UTC) - timedelta(hours=age_hours),
+        admin_notification_message_id=None,
+    )
+
+
+async def test_repost_sends_full_card_and_attaches_message_id() -> None:
+    container, services, _redis = _build_container(
+        pending_unnotified=[_unnotified_receipt(rid=2, age_hours=1)],
+    )
+
+    with patch(
+        "app.jobs.pending_receipt_reminder.get_runtime_container",
+        return_value=container,
+    ):
+        await pending_receipt_reminder_job()
+
+    send = services.notification.send_to_admin_group
+    # The re-post carries the photo and the ✅/❌ keyboard, unlike the nag.
+    repost_call = send.await_args_list[0]
+    assert repost_call.kwargs["photo_file_id"] == "file-2"
+    assert repost_call.kwargs["reply_markup"] is not None
+    assert "Повторная отправка" in repost_call.args[0]
+    services.receipt.attach_admin_notification_message.assert_awaited_once_with(2, 777)
+
+
+async def test_repost_failure_keeps_receipt_unnotified_for_next_sweep() -> None:
+    from aiogram.exceptions import TelegramAPIError
+
+    container, services, _redis = _build_container(
+        pending_unnotified=[_unnotified_receipt(rid=2, age_hours=1)],
+        notification_raises=TelegramAPIError(method=MagicMock(), message="down"),
+    )
+
+    with patch(
+        "app.jobs.pending_receipt_reminder.get_runtime_container",
+        return_value=container,
+    ):
+        await pending_receipt_reminder_job()  # must not raise
+
+    services.receipt.attach_admin_notification_message.assert_not_awaited()
 
 
 async def test_reminder_uses_nx_and_ttl_on_marker() -> None:
