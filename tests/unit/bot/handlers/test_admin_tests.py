@@ -9,7 +9,10 @@ from unittest.mock import AsyncMock, MagicMock
 from app.bot.callbacks.publish import PublishCD
 from app.bot.handlers.admin import tests as admin_tests
 from app.bot.handlers.admin.tests import (
+    _not_command,
+    cmd_cancel_upload,
     cmd_upload_test,
+    on_collecting_image_as_file,
     on_collecting_non_photo,
     on_publish_cancel,
     on_publish_silent,
@@ -83,11 +86,76 @@ async def test_cmd_upload_test_sets_state_and_prompts() -> None:
     message = MagicMock()
     message.answer = AsyncMock()
     state = MagicMock()
+    state.get_data = AsyncMock(return_value={})
+    state.clear = AsyncMock()
     state.set_state = AsyncMock()
+    services = _services()
+    container = _container(services)
 
-    await cmd_upload_test(message, state=state)
+    await cmd_upload_test(
+        message, state=state, session=MagicMock(), user=_admin_user(), container=container
+    )
 
     state.set_state.assert_awaited_once_with(AdminTestUploadState.waiting_for_file)
+    services.test.cancel_draft.assert_not_awaited()
+    message.answer.assert_awaited_once()
+
+
+async def test_cmd_upload_test_deletes_stale_draft_on_restart() -> None:
+    message = MagicMock()
+    message.answer = AsyncMock()
+    state = MagicMock()
+    state.get_data = AsyncMock(return_value={"draft_test_id": 5})
+    state.clear = AsyncMock()
+    state.set_state = AsyncMock()
+    services = _services()
+    container = _container(services)
+
+    await cmd_upload_test(
+        message, state=state, session=MagicMock(), user=_admin_user(), container=container
+    )
+
+    services.test.cancel_draft.assert_awaited_once_with(5)
+    state.clear.assert_awaited_once()
+    state.set_state.assert_awaited_once_with(AdminTestUploadState.waiting_for_file)
+
+
+# ---------- /cancel escape hatch ----------
+
+
+async def test_cmd_cancel_upload_deletes_draft_and_clears_state() -> None:
+    message = MagicMock()
+    message.answer = AsyncMock()
+    state = MagicMock()
+    state.get_data = AsyncMock(return_value={"draft_test_id": 7})
+    state.clear = AsyncMock()
+    services = _services()
+    container = _container(services)
+
+    await cmd_cancel_upload(
+        message, state=state, session=MagicMock(), user=_admin_user(), container=container
+    )
+
+    services.test.cancel_draft.assert_awaited_once_with(7)
+    state.clear.assert_awaited_once()
+    assert "отменена" in message.answer.await_args.args[0].lower()
+
+
+async def test_cmd_cancel_upload_without_draft_still_clears_state() -> None:
+    message = MagicMock()
+    message.answer = AsyncMock()
+    state = MagicMock()
+    state.get_data = AsyncMock(return_value={})
+    state.clear = AsyncMock()
+    services = _services()
+    container = _container(services)
+
+    await cmd_cancel_upload(
+        message, state=state, session=MagicMock(), user=_admin_user(), container=container
+    )
+
+    services.test.cancel_draft.assert_not_awaited()
+    state.clear.assert_awaited_once()
     message.answer.assert_awaited_once()
 
 
@@ -236,4 +304,21 @@ async def test_collecting_non_photo_reminds_to_send_image() -> None:
     msg.answer = AsyncMock()
     await on_collecting_non_photo(msg)
     msg.answer.assert_awaited_once()
-    assert "фото" in msg.answer.await_args.args[0].lower()
+    reminder = msg.answer.await_args.args[0].lower()
+    assert "фото" in reminder
+    assert "/cancel" in reminder
+
+
+async def test_collecting_image_as_file_explains_compression() -> None:
+    msg = MagicMock()
+    msg.answer = AsyncMock()
+    await on_collecting_image_as_file(msg)
+    msg.answer.assert_awaited_once()
+    assert "файлом" in msg.answer.await_args.args[0].lower()
+
+
+def test_not_command_filter_lets_commands_fall_through() -> None:
+    assert _not_command(SimpleNamespace(text="/admin")) is False
+    assert _not_command(SimpleNamespace(text="/cancel")) is False
+    assert _not_command(SimpleNamespace(text="привет")) is True
+    assert _not_command(SimpleNamespace(text=None)) is True  # stickers, voice, documents

@@ -97,17 +97,46 @@ _PUBLISHED_NOTIFY_REPLY = (
 )
 _OUT_OF_FLOW_DOC_REPLY = "Чтобы загрузить тест, сначала используйте /upload_test."
 _EXPECT_IMAGE = (
-    "Пожалуйста, отправьте изображение (фото) для текущего вопроса или нажмите «🗑 Отменить»."
+    "Пожалуйста, отправьте изображение (фото) для текущего вопроса.\n\n"
+    "Чтобы прервать загрузку теста, нажмите «🗑 Отменить» или отправьте /cancel."
+)
+_IMAGE_SENT_AS_FILE = (
+    "Похоже, вы отправили изображение файлом (без сжатия). "
+    "Отправьте его, пожалуйста, как <b>фото</b>: при выборе из галереи "
+    "не используйте опцию «Файл / Без сжатия».\n\n"
+    "Чтобы прервать загрузку теста, нажмите «🗑 Отменить» или отправьте /cancel."
 )
 _IMAGE_FLOW_LOST = "Не удалось продолжить загрузку. Начните заново через /upload_test."
+
+
+def _not_command(message: Message) -> bool:
+    """Let slash-commands fall through to their real handlers.
+
+    Without this, the collecting-images catch-all swallows /admin, /cancel
+    and every other command, locking the admin into the image flow.
+    """
+    return not (message.text or "").startswith("/")
 
 
 # ---------- /upload_test ----------
 
 
 @router.message(Command("upload_test"))
-async def cmd_upload_test(message: Message, state: FSMContext) -> None:
+async def cmd_upload_test(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    container: Container,
+) -> None:
     """Kick off the upload flow — wait for the next document from this admin."""
+    # Restarting mid-flow abandons the previous draft; delete it so unfinished
+    # drafts (e.g. ones stuck waiting for images) don't pile up in the DB.
+    data = await state.get_data()
+    stale_draft_id = data.get("draft_test_id")
+    if stale_draft_id is not None:
+        await container.services(session).test.cancel_draft(stale_draft_id)
+    await state.clear()
     await state.set_state(AdminTestUploadState.waiting_for_file)
     await message.answer(_UPLOAD_PROMPT)
 
@@ -132,6 +161,27 @@ async def cmd_template(message: Message) -> None:
             "в колонке has_image — бот попросит фото после загрузки."
         ),
     )
+
+
+# ---------- /cancel — escape hatch from any upload-flow state ----------
+
+
+@router.message(Command("cancel"), StateFilter(AdminTestUploadState))
+async def cmd_cancel_upload(
+    message: Message,
+    state: FSMContext,
+    session: AsyncSession,
+    user: User,
+    container: Container,
+) -> None:
+    """Abort the upload flow from any of its states, deleting the draft."""
+    data = await state.get_data()
+    draft_id = data.get("draft_test_id")
+    await state.clear()
+    if draft_id is not None:
+        await container.services(session).test.cancel_draft(draft_id)
+    logger.info("upload_cancelled_via_command", test_id=draft_id)
+    await message.answer(_CANCELLED_REPLY)
 
 
 # ---------- document received while in upload flow ----------
@@ -246,9 +296,23 @@ async def on_question_image(
     await _finish_image_collection(message, state, draft_id, services)
 
 
-@router.message(StateFilter(AdminTestUploadState.collecting_images))
+@router.message(
+    StateFilter(AdminTestUploadState.collecting_images),
+    F.document.mime_type.startswith("image/"),
+)
+async def on_collecting_image_as_file(message: Message) -> None:
+    """Image sent as an uncompressed file — its file_id can't be re-sent via
+    sendPhoto to students, so ask the admin to resend it as a photo."""
+    await message.answer(_IMAGE_SENT_AS_FILE)
+
+
+@router.message(StateFilter(AdminTestUploadState.collecting_images), _not_command)
 async def on_collecting_non_photo(message: Message) -> None:
-    """Any non-photo input while collecting question images — gentle reminder."""
+    """Any non-photo, non-command input while collecting images — gentle reminder.
+
+    Commands deliberately fall through to their own handlers (/cancel,
+    /admin, …) so the image flow can't trap the admin.
+    """
     await message.answer(_EXPECT_IMAGE)
 
 
