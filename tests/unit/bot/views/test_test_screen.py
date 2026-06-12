@@ -149,11 +149,13 @@ def test_test_screen_keyboard_button_count_is_57() -> None:
     assert total == 57
 
 
-def test_test_screen_legend_below_question_lists_all_three_sections() -> None:
+def test_test_screen_has_no_section_legend_below_question() -> None:
+    # The legend was removed by client request — the header line already
+    # names the current section, so the block only added noise.
     rendered = render_test_screen(_attempt_state(current_position=1))
-    assert "Русский язык (1–35)" in rendered.text
-    assert "Педагогическое мастерство (36–45)" in rendered.text
-    assert "Профессиональный стандарт (46–50)" in rendered.text
+    assert "Русский язык (1–35)" not in rendered.text
+    assert "Педагогическое мастерство (36–45)" not in rendered.text
+    assert "Раздел:" in rendered.text  # the header still names the section
 
 
 def _state_with_image_at(position: int, file_id: str) -> AttemptState:
@@ -186,13 +188,11 @@ def _state_with_image_at(position: int, file_id: str) -> AttemptState:
     )
 
 
-def test_test_screen_image_question_renders_as_photo_without_legend() -> None:
+def test_test_screen_image_question_renders_as_photo() -> None:
     rendered = render_test_screen(_state_with_image_at(5, "TG_FILE_ID_5"))
-    # Photo mode: file id set, caption carries the question, legend omitted to
-    # respect Telegram's 1024-char caption cap.
+    # Photo mode: file id set, caption carries the header + question.
     assert rendered.photo_file_id == "TG_FILE_ID_5"
     assert "Вопрос 5/50" in rendered.text
-    assert "Русский язык (1–35)" not in rendered.text
     # Keyboard is unchanged — still the full 57-button layout.
     assert sum(len(row) for row in rendered.reply_markup.inline_keyboard) == 57
 

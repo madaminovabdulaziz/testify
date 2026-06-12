@@ -7,7 +7,6 @@ emits one ``RenderedMessage`` with:
 
 * the timer / question / section header line
 * the question text + four lettered options
-* the static three-section legend
 * the inline keyboard — A/B/C/D, ← →, finish, then the 5-row 50-button
   number grid
 
@@ -29,22 +28,12 @@ from app.core.i18n import (
     BTN_BACK,
     BTN_FINISH_TEST,
     BTN_FORWARD,
-    SECTION_LABEL_KASBIY,
-    SECTION_LABEL_PEDAGOGIK,
-    SECTION_LABEL_RUS_TILI,
     SECTION_LABELS,
 )
 from app.models.question import Question
 from app.services.attempt_service import AttemptState
 from app.utils.datetime import format_duration_mm_ss
 from app.utils.text import html_escape
-
-# Static legend block that appears below the question on every render.
-_SECTION_LEGEND: tuple[str, ...] = (
-    f"📚 {SECTION_LABEL_RUS_TILI} (1–35)",
-    f"👨‍🏫 {SECTION_LABEL_PEDAGOGIK} (36–45)",
-    f"📋 {SECTION_LABEL_KASBIY} (46–50)",
-)
 
 
 @dataclass(frozen=True)
@@ -77,9 +66,9 @@ def render_test_screen(state: AttemptState) -> RenderedMessage:
 
     image_file_id = getattr(current_question, "image_file_id", None)
     if current_question is not None and image_file_id:
-        # Photo mode: caption omits the three-section legend to stay within
-        # Telegram's 1024-char caption cap (the parser already bounds the
-        # text+options block; the grid keyboard still conveys the sections).
+        # Photo mode: same caption layout as text mode (header + body); the
+        # parser bounds the text+options block to fit Telegram's 1024-char
+        # caption cap.
         caption = _compose(_header_line(state, current_question), _question_body(current_question))
         return RenderedMessage(
             text=caption,
@@ -95,14 +84,9 @@ def render_test_screen(state: AttemptState) -> RenderedMessage:
 
 
 def _format_message_text(state: AttemptState, question: Question | None) -> str:
-    parts = [
-        _header_line(state, question),
-        "",
-        _question_body(question),
-        "",
-        *_SECTION_LEGEND,
-    ]
-    return "\n".join(parts)
+    # No section legend below the question — the header line already names
+    # the current section and the number grid conveys the structure.
+    return _compose(_header_line(state, question), _question_body(question))
 
 
 def _header_line(state: AttemptState, question: Question | None) -> str:
