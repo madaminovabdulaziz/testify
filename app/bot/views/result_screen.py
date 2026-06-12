@@ -43,6 +43,14 @@ CANCEL_PRETEST_CALLBACK = "cancel_pretest"
 # number (CODE_REVIEW N4).
 _TOTAL_QUESTIONS = 50
 
+# Section blocks for the per-question marks grid (mirrors the test screen).
+_MARKS_SECTIONS = (
+    ("📚 Русский язык", 1, 35),
+    ("👨‍🏫 Педагогическое мастерство", 36, 45),
+    ("📋 Профессиональный стандарт", 46, 50),
+)
+_MARKS_PER_ROW = 10
+
 
 # ---------- pre-test ----------
 
@@ -56,7 +64,7 @@ def render_pretest_screen() -> RenderedMessage:
         "  • Педагогическое мастерство: вопросы 36–45\n"
         "  • Профессиональный стандарт: вопросы 46–50\n\n"
         "⏱ Время: 53 минуты 20 секунд (на весь тест)\n"
-        "📊 Результат: только балл, без разбора (разбор — в чате)\n\n"
+        "📊 Результат: балл и отметки ✅/❌ по вопросам (разбор — в чате)\n\n"
         "⚠️ Внимание: как только вы нажмёте «Начать», таймер запустится.\n"
         "Тест можно пройти только один раз."
     )
@@ -106,8 +114,15 @@ def render_result_screen(
     scores: SectionScores,
     *,
     group_invite_link: str | None,
+    marks: dict[int, bool | None] | None = None,
 ) -> RenderedMessage:
-    """Final score + per-section breakdown + link to the group chat (§8.6)."""
+    """Final score + per-section breakdown + ✅/❌ marks + chat link (§8.6).
+
+    ``marks`` is ``position -> correct?/None`` from
+    ``AttemptService.get_question_marks``; the grid shows *which* questions
+    went wrong, never the correct answers — those stay with the teacher's
+    разбор in the chat.
+    """
     percentage = round(scores.total / _TOTAL_QUESTIONS * 100, 1)
     duration_text = _format_attempt_duration(attempt)
 
@@ -118,7 +133,8 @@ def render_result_screen(
         f"  • Русский язык: {scores.rus_tili}/35\n"
         f"  • Педагогическое мастерство: {scores.pedagogik}/10\n"
         f"  • Профессиональный стандарт: {scores.kasbiy}/5\n\n"
-        f"⏱ Затрачено времени: {duration_text}\n\n"
+        f"⏱ Затрачено времени: {duration_text}"
+        f"{_marks_block(marks)}\n\n"
         "Разбор вопросов — в чате студентов."
     )
 
@@ -133,13 +149,14 @@ def render_prior_result_screen(
     scores: SectionScores,
     *,
     group_invite_link: str | None,
+    marks: dict[int, bool | None] | None = None,
 ) -> RenderedMessage:
     """Short version shown when the user re-enters a test they've already finished (§8.6).
 
     Per PRODUCT_BLUEPRINT §11.3 the canonical message is just "Вы уже
     проходили этот тест.\\nВаш результат: X/50". We add the per-section
-    breakdown + chat link too so the student gets the full result every
-    time, not only on the first submit.
+    breakdown, the ✅/❌ marks grid and the chat link too so the student
+    gets the full result every time, not only on the first submit.
     """
     text = (
         "Вы уже проходили этот тест.\n\n"
@@ -148,6 +165,7 @@ def render_prior_result_screen(
         f"  • Русский язык: {scores.rus_tili}/35\n"
         f"  • Педагогическое мастерство: {scores.pedagogik}/10\n"
         f"  • Профессиональный стандарт: {scores.kasbiy}/5"
+        f"{_marks_block(marks)}"
     )
     return RenderedMessage(
         text=text,
@@ -156,6 +174,45 @@ def render_prior_result_screen(
 
 
 # ---------- helpers ----------
+
+
+def _marks_block(marks: dict[int, bool | None] | None) -> str:
+    """The per-question ✅/❌/⬜ grid + the error/unanswered summary lines.
+
+    Returns "" when marks are absent so both result screens degrade
+    gracefully (e.g. an attempt whose questions vanished). The grid reuses
+    the test screen's iconography: ✅ correct, ❌ wrong, ⬜ unanswered.
+    The «Ошибки: …» line is the piece students paste into the chat when
+    asking the teacher to разобрать specific questions.
+    """
+    if not marks:
+        return ""
+
+    lines: list[str] = []
+    for title, lo, hi in _MARKS_SECTIONS:
+        lines.append("")
+        lines.append(title)
+        row: list[str] = []
+        for pos in range(lo, hi + 1):
+            value = marks.get(pos)
+            icon = "✅" if value is True else ("❌" if value is False else "⬜")
+            row.append(f"{pos}{icon}")
+            if len(row) == _MARKS_PER_ROW:
+                lines.append(" ".join(row))
+                row = []
+        if row:
+            lines.append(" ".join(row))
+
+    wrong = sorted(pos for pos, value in marks.items() if value is False)
+    unanswered = sorted(pos for pos, value in marks.items() if value is None)
+    if wrong or unanswered:
+        lines.append("")
+    if wrong:
+        lines.append("❌ Ошибки: " + ", ".join(str(p) for p in wrong))
+    if unanswered:
+        lines.append("⬜ Без ответа: " + ", ".join(str(p) for p in unanswered))
+
+    return "\n\n" + "\n".join(lines).strip()
 
 
 def _chat_link_keyboard(group_invite_link: str | None) -> InlineKeyboardMarkup | None:

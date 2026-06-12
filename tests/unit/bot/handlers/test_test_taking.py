@@ -143,6 +143,7 @@ def _services_bundle(
         services.attempt.start = AsyncMock(return_value=_attempt_row())
 
     services.attempt.finish = AsyncMock(return_value=finish_result)
+    services.attempt.get_question_marks = AsyncMock(return_value={})
 
     async def fake_setting(key: str) -> str | None:
         return {

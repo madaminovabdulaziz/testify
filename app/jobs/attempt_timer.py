@@ -174,10 +174,12 @@ async def attempt_expire_job(attempt_id: int) -> None:
 
         invite_link = await services.settings.get("group_invite_link")
         auto_text = (await services.settings.get("msg_auto_submitted")) or _FALLBACK_AUTO_SUBMITTED
+        marks = await services.attempt.get_question_marks(attempt_id)
         result_screen = render_result_screen(
             result.attempt,
             result.scores,
             group_invite_link=invite_link,
+            marks=marks,
         )
         telegram_id = user.telegram_id
         await session.commit()

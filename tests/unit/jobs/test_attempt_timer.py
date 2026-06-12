@@ -78,6 +78,7 @@ def _services_mock(
     services.attempt.claim_warning_slot = AsyncMock(return_value=resolved_claim)
     services.attempt.get_attempt = AsyncMock(return_value=resolved_claim)
     services.attempt.finish = AsyncMock(return_value=finish_returns)
+    services.attempt.get_question_marks = AsyncMock(return_value={})
     services.user.get_user = AsyncMock(return_value=resolved_user)
 
     settings_values = settings_values or {}

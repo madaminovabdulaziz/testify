@@ -272,6 +272,28 @@ class AttemptService:
             answers_by_question_id={a.question_id: a for a in answers},
         )
 
+    async def get_question_marks(self, attempt_id: int) -> dict[int, bool | None]:
+        """Per-question outcome map for the result screen.
+
+        ``position -> True`` (correct) / ``False`` (wrong) / ``None``
+        (unanswered — no answer row exists). Empty dict when the attempt is
+        unknown. Correct *answers* are deliberately not exposed — students
+        see where they erred, the explanation stays with the teacher
+        (PRODUCT_BLUEPRINT §8.6, relaxed per the client's request to show
+        per-question ✅/❌ marks).
+        """
+        detail = await self.get_attempt_detail(attempt_id)
+        if detail is None:
+            return {}
+        return {
+            q.position: (
+                bool(detail.answers_by_question_id[q.id].is_correct)
+                if q.id in detail.answers_by_question_id
+                else None
+            )
+            for q in detail.questions
+        }
+
     async def get_state(self, attempt_id: int, user_id: int) -> AttemptState:
         """Build the DTO the test-screen view needs.
 

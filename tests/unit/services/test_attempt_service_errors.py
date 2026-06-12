@@ -94,3 +94,39 @@ async def test_start_converts_unique_violation_to_already_exists() -> None:
     # No id available (poisoned session) — handler will surface the friendly
     # message rather than trying to resume a specific attempt.
     assert caught.value.existing_attempt_id is None
+
+
+# ---------- per-question marks for the result screen ----------
+
+
+async def test_get_question_marks_maps_correct_wrong_unanswered() -> None:
+    attempts = MagicMock()
+    attempts.get_by_id = AsyncMock(return_value=_attempt(status="submitted"))
+    answers = MagicMock()
+    answers.list_by_attempt = AsyncMock(
+        return_value=[
+            SimpleNamespace(question_id=11, is_correct=True),
+            SimpleNamespace(question_id=12, is_correct=False),
+        ]
+    )
+    questions = MagicMock()
+    questions.list_by_test = AsyncMock(
+        return_value=[
+            SimpleNamespace(id=11, position=1),
+            SimpleNamespace(id=12, position=2),
+            SimpleNamespace(id=13, position=3),  # no answer row
+        ]
+    )
+    svc = AttemptService(attempts, answers, questions, MagicMock(), MagicMock())
+
+    marks = await svc.get_question_marks(42)
+
+    assert marks == {1: True, 2: False, 3: None}
+
+
+async def test_get_question_marks_empty_for_unknown_attempt() -> None:
+    attempts = MagicMock()
+    attempts.get_by_id = AsyncMock(return_value=None)
+    svc = AttemptService(attempts, MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    assert await svc.get_question_marks(404) == {}

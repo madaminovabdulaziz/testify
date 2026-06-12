@@ -307,9 +307,10 @@ async def on_finish_confirmed(
     await state.clear()
 
     link = await services.settings.get("group_invite_link")
+    marks = await services.attempt.get_question_marks(callback_data.attempt_id)
     await _edit_or_answer(
         callback,
-        render_result_screen(result.attempt, result.scores, group_invite_link=link),
+        render_result_screen(result.attempt, result.scores, group_invite_link=link, marks=marks),
     )
 
     logger.info(
@@ -401,10 +402,12 @@ async def _enter_test_flow(
             return
         await state.clear()
         link = await services.settings.get("group_invite_link")
+        marks = await services.attempt.get_question_marks(existing.id)
         rendered = render_prior_result_screen(
             existing,
             section_scores_from_attempt(existing),
             group_invite_link=link,
+            marks=marks,
         )
         await _send_rendered(message, rendered)
         return
@@ -433,10 +436,12 @@ async def _resume_or_show_prior(
             return
         await state.clear()
         link = await services.settings.get("group_invite_link")
+        marks = await services.attempt.get_question_marks(attempt.id)
         rendered = render_prior_result_screen(
             attempt,
             section_scores_from_attempt(attempt),
             group_invite_link=link,
+            marks=marks,
         )
     await _edit_or_answer(callback, rendered)
 
@@ -460,10 +465,12 @@ async def _show_finished(
         return
     await state.clear()
     link = await services.settings.get("group_invite_link")
+    marks = await services.attempt.get_question_marks(attempt.id)
     rendered = render_result_screen(
         attempt,
         section_scores_from_attempt(attempt),
         group_invite_link=link,
+        marks=marks,
     )
     await _edit_or_answer(callback, rendered)
 
