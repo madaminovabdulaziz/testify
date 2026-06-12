@@ -28,6 +28,7 @@
   <div class="editor-title-row">
     <label class="field-label" for="title">Название теста</label>
     <input type="text" id="title" name="title" maxlength="200" value="{{ title_value }}" required>
+    <p class="editor-hint">Выделение в тексте вопросов и вариантов: <code>**жирный**</code>, <code>__курсив__</code>.</p>
   </div>
 
   {% for key, label, lo, hi in section_blocks %}

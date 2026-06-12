@@ -159,3 +159,35 @@ def test_section_count_mismatch_flagged() -> None:
     errors = validate_test_completeness(questions)
     assert any("«rus_tili», найдено 34" in e for e in errors)
     assert any("«kasbiy», найдено 6" in e for e in errors)
+
+
+# ---------- markup validation in question fields ----------
+
+
+def test_unbalanced_bold_in_question_text_flagged() -> None:
+    errors = validate_question_fields(**_fields(question_text="цена **100"))  # type: ignore[arg-type]
+    assert [e.field for e in errors] == ["question_text"]
+    assert "жирным" in errors[0].message
+
+
+def test_unbalanced_italic_in_option_flagged() -> None:
+    errors = validate_question_fields(**_fields(option_c="слово __курсив"))  # type: ignore[arg-type]
+    assert [e.field for e in errors] == ["option_c"]
+
+
+def test_wellformed_markup_passes() -> None:
+    errors = validate_question_fields(
+        **_fields(question_text="Какой **глагол**?", option_a="__вид__")  # type: ignore[arg-type]
+    )
+    assert errors == []
+
+
+def test_caption_budget_measures_rendered_length() -> None:
+    # Markers don't count toward the photo-caption budget: text that only
+    # fits once ** pairs are stripped must pass.
+    body = MAX_IMAGE_CAPTION_BLOCK_LEN - CAPTION_BODY_OVERHEAD - 4
+    text = "**" + "x" * body + "**"  # raw length is over, visible length is exact
+    errors = validate_question_fields(
+        **_fields(has_image=True, question_text=text)  # type: ignore[arg-type]
+    )
+    assert errors == []

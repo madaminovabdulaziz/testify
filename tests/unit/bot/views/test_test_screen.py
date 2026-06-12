@@ -284,3 +284,39 @@ def test_prior_result_screen_says_already_attempted() -> None:
     )
     assert "уже проходили" in rendered.text
     assert "42/50" in rendered.text
+
+
+def test_question_markup_renders_as_telegram_entities() -> None:
+    state = _attempt_state(current_position=1)
+    questions = list(state.questions)
+    q = questions[0]
+    questions[0] = SimpleNamespace(
+        id=q.id,
+        position=q.position,
+        section=q.section,
+        question_text="Какой **глагол** относится к __первому__ спряжению?",
+        option_a="**Видеть**",
+        option_b=q.option_b,
+        option_c=q.option_c,
+        option_d=q.option_d,
+        correct_option=q.correct_option,
+    )
+    patched = AttemptState(
+        attempt_id=state.attempt_id,
+        user_id=state.user_id,
+        test_id=state.test_id,
+        status=state.status,
+        current_position=state.current_position,
+        started_at=state.started_at,
+        expires_at=state.expires_at,
+        time_remaining_seconds=state.time_remaining_seconds,
+        questions=tuple(questions),
+        answers_by_question_id=state.answers_by_question_id,
+    )
+
+    rendered = render_test_screen(patched)
+
+    assert "<b>глагол</b>" in rendered.text
+    assert "<i>первому</i>" in rendered.text
+    assert "A. <b>Видеть</b>" in rendered.text
+    assert "**" not in rendered.text

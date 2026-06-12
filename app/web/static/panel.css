@@ -215,6 +215,8 @@ tr.row-link:hover td { background: #f6f8fb; }
 
 .editor-title-row { margin-bottom: 20px; }
 .editor-title-row input { font-size: 17px; font-weight: 600; }
+.editor-hint { font-size: 13px; color: var(--ink-soft); margin: 6px 0 0; }
+.editor-hint code { background: var(--line-soft); border-radius: 4px; padding: 1px 5px; }
 
 .error-summary {
   background: var(--danger-bg);

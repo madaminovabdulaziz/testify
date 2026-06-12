@@ -33,6 +33,7 @@ from app.core.i18n import (
 from app.models.question import Question
 from app.services.attempt_service import AttemptState
 from app.utils.datetime import format_duration_mm_ss
+from app.utils.markup import render_markup
 from app.utils.text import html_escape
 
 
@@ -102,12 +103,14 @@ def _header_line(state: AttemptState, question: Question | None) -> str:
 def _question_body(question: Question | None) -> str:
     if question is None:
         return "<i>Вопрос не найден.</i>"
+    # render_markup escapes first, then converts **жирный**/__курсив__
+    # markers into Telegram <b>/<i> entities.
     return (
-        f"{html_escape(question.question_text)}\n\n"
-        f"A. {html_escape(question.option_a)}\n"
-        f"B. {html_escape(question.option_b)}\n"
-        f"C. {html_escape(question.option_c)}\n"
-        f"D. {html_escape(question.option_d)}"
+        f"{render_markup(question.question_text)}\n\n"
+        f"A. {render_markup(question.option_a)}\n"
+        f"B. {render_markup(question.option_b)}\n"
+        f"C. {render_markup(question.option_c)}\n"
+        f"D. {render_markup(question.option_d)}"
     )
 
 

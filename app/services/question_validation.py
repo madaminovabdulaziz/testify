@@ -16,6 +16,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final, Protocol
 
+from app.utils.markup import validate_markup, visible_length
+
 # ---------- Validation constants (moved from excel_parser) ----------
 
 EXPECTED_ROW_COUNT: Final[int] = 50
@@ -98,13 +100,18 @@ def caption_block_length(
     option_c: str,
     option_d: str,
 ) -> int:
-    """Length of the photo-caption body for an image question (incl. formatting)."""
+    """Length of the photo-caption body for an image question (incl. formatting).
+
+    Measures the *rendered* length — ``**``/``__`` markup markers are
+    stripped because Telegram's caption cap applies to the parsed text,
+    not the raw markers.
+    """
     return (
-        len(question_text.strip())
-        + len(option_a.strip())
-        + len(option_b.strip())
-        + len(option_c.strip())
-        + len(option_d.strip())
+        visible_length(question_text.strip())
+        + visible_length(option_a.strip())
+        + visible_length(option_b.strip())
+        + visible_length(option_c.strip())
+        + visible_length(option_d.strip())
         + CAPTION_BODY_OVERHEAD
     )
 
@@ -188,6 +195,18 @@ def validate_question_fields(
                 message="Значение в колонке «correct_option» должно быть A, B, C или D.",
             )
         )
+
+    # **жирный** / __курсив__ markup must be well-formed wherever it appears,
+    # or students would see stray markers verbatim.
+    for field, value in (
+        ("question_text", question_text),
+        ("option_a", option_a),
+        ("option_b", option_b),
+        ("option_c", option_c),
+        ("option_d", option_d),
+    ):
+        for message in validate_markup(value):
+            errors.append(FieldError(field=field, message=message))
 
     if has_image:
         block_len = caption_block_length(question_text, option_a, option_b, option_c, option_d)
